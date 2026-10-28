@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MD Viewer</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230969da'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='14' font-weight='700' fill='white' text-anchor='middle'%3EMD%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div id="layout" class="layout">
+      <aside class="sidebar" aria-label="Files">
+        <div class="sidebar-head">
+          <div class="brand-row">
+            <span class="brand">MD Viewer</span>
+            <span class="brand-actions">
+              <button id="theme-toggle" class="btn small" type="button" title="Theme: auto">◐</button>
+              <button id="new-file" class="btn small" type="button" title="New file">+ New</button>
+            </span>
+          </div>
+          <input id="filter" type="search" placeholder="Search files and text…" autocomplete="off" />
+        </div>
+        <div class="sidebar-scroll">
+          <nav id="tree" class="tree"></nav>
+          <section id="search-results" class="search-results" aria-label="Matches in file contents" hidden></section>
+        </div>
+        <div id="account" class="sidebar-foot" hidden></div>
+      </aside>
+      <div id="backdrop" class="backdrop"></div>
+      <main class="main">
+        <header class="topbar">
+          <button id="menu-toggle" class="menu-toggle" aria-label="Show files">☰</button>
+          <div id="breadcrumb" class="breadcrumb"></div>
+          <div id="actions" class="actions"></div>
+        </header>
+        <div id="banner" class="banner" role="alert" hidden></div>
+        <div class="workspace">
+          <div id="editor-pane" class="editor-pane"></div>
+          <article id="content" class="markdown-body"></article>
+          <nav id="toc" class="toc" aria-label="On this page" hidden></nav>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="conflict-dialog" class="dialog">
+      <form method="dialog">
+        <h2>This file changed on disk</h2>
+        <p>Someone (or another editor) saved this file after you opened it. What do you want to do?</p>
+        <div class="dialog-actions">
+          <button class="btn danger" value="overwrite">Overwrite with mine</button>
+          <button class="btn" value="copy">Copy mine, load theirs</button>
+          <button class="btn" value="reload">Discard mine, load theirs</button>
+          <button class="btn" value="cancel">Keep editing</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="changes-dialog" class="dialog dialog-wide">
+      <form method="dialog">
+        <h2>Changes to save <span id="changes-stats" class="changes-stats"></span></h2>
+        <div id="changes-body" class="diff"></div>
+        <div class="dialog-actions">
+          <button class="btn primary" value="save">Save</button>
+          <button class="btn" value="close">Keep editing</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="connect-dialog" class="dialog">
+      <form id="connect-form" method="dialog">
+        <h2>Connect GitHub to edit</h2>
+        <p>
+          Paste a
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer"
+            >fine-grained token</a
+          >
+          limited to <strong id="connect-repo"></strong> with <em>Contents: Read and write</em>. It stays in this
+          browser tab only and is forgotten when you close it.
+        </p>
+        <input id="connect-token" class="text-input" type="password" autocomplete="off" placeholder="github_pat_…" />
+        <p id="connect-error" class="form-error" hidden></p>
+        <div class="dialog-actions">
+          <button id="connect-submit" class="btn primary" value="connect">Connect</button>
+          <button class="btn" value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
