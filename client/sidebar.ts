@@ -29,9 +29,16 @@ export class Sidebar {
   private expanded = loadExpanded();
   private active = '';
   private filter = '';
+  /** When set, each top-level folder gets a × button that calls this with the folder's path. */
+  private onRemoveRoot: ((path: string) => void) | null = null;
 
   constructor(private el: HTMLElement) {
     el.addEventListener('click', (e) => {
+      const remove = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-remove-root]');
+      if (remove) {
+        this.onRemoveRoot?.(remove.dataset.removeRoot!);
+        return;
+      }
       const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-dir]');
       if (!button) return;
       const dir = button.dataset.dir!;
@@ -44,6 +51,11 @@ export class Sidebar {
 
   setTree(tree: TreeNode[]) {
     this.tree = tree;
+    this.render();
+  }
+
+  setRootRemover(onRemoveRoot: ((path: string) => void) | null) {
+    this.onRemoveRoot = onRemoveRoot;
     this.render();
   }
 
@@ -68,7 +80,7 @@ export class Sidebar {
       this.el.innerHTML = `<p class="tree-empty">${this.filter ? 'No file names match' : 'No markdown files found'}</p>`;
       return;
     }
-    this.el.replaceChildren(this.renderList(nodes));
+    this.el.replaceChildren(this.renderList(nodes, true));
   }
 
   private filtered(nodes: TreeNode[]): TreeNode[] {
@@ -79,7 +91,7 @@ export class Sidebar {
     });
   }
 
-  private renderList(nodes: TreeNode[]): HTMLUListElement {
+  private renderList(nodes: TreeNode[], top = false): HTMLUListElement {
     const ul = document.createElement('ul');
     for (const node of nodes) {
       const li = document.createElement('li');
@@ -90,7 +102,20 @@ export class Sidebar {
         button.dataset.dir = node.path;
         button.setAttribute('aria-expanded', String(open));
         button.textContent = node.name;
-        li.append(button);
+        if (top && this.onRemoveRoot) {
+          const remove = document.createElement('button');
+          remove.className = 'remove-root';
+          remove.dataset.removeRoot = node.path;
+          remove.textContent = '×';
+          remove.title = `Close “${node.name}”`;
+          remove.setAttribute('aria-label', `Close ${node.name}`);
+          const wrap = document.createElement('div');
+          wrap.className = 'root-row';
+          wrap.append(button, remove);
+          li.append(wrap);
+        } else {
+          li.append(button);
+        }
         if (open) li.append(this.renderList(node.children ?? []));
       } else {
         const a = document.createElement('a');

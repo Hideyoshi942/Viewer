@@ -6,10 +6,10 @@ import { renderChanges } from './changes';
 import {
   canPickDirectory,
   DeviceFolderSource,
-  forgetSnapshot,
+  forgetSnapshots,
   pickDirectory,
-  recallSnapshot,
-  rememberSnapshot,
+  recallSnapshots,
+  rememberSnapshots,
   snapshotFromFiles,
   type Snapshot,
 } from './device-folder';
@@ -576,12 +576,18 @@ const connectError = $<HTMLElement>('connect-error');
 const connectSubmit = $<HTMLButtonElement>('connect-submit');
 
 function renderAccount() {
+  // Folders opened from this device can be closed one at a time from the sidebar.
+  sidebar.setRootRemover(ds instanceof DeviceFolderSource ? (name) => void closeOneFolder(name) : null);
   if (ds instanceof DeviceFolderSource) {
     const device = ds;
     const label = document.createElement('span');
+    const folders = device.snapshots.length;
     label.textContent = `📂 ${device.name} · ${device.fileCount} files · read-only`;
-    label.title = 'Opened from this device; nothing was uploaded';
-    account.replaceChildren(label, button('Close', () => void closeDeviceFolder(), { className: 'small' }));
+    label.title = ['Opened from this device; nothing was uploaded', ...device.snapshots.map((s) => s.name)].join('\n');
+    account.replaceChildren(
+      label,
+      button(folders > 1 ? 'Close all' : 'Close', () => void closeDeviceFolder(), { className: 'small' }),
+    );
     account.hidden = false;
     return;
   }
@@ -668,18 +674,49 @@ async function openSnapshot(snapshot: Snapshot | null) {
     toast('No .md files found in what you picked.', 'error');
     return;
   }
-  const source = await DeviceFolderSource.create(snapshot);
-  if (!(await useSource(source))) return;
-  const remembered = await rememberSnapshot(snapshot);
+  // A folder opened while others are shown is added beside them as another top-level folder.
+  let source: DeviceFolderSource;
+  let name: string;
+  if (ds instanceof DeviceFolderSource) {
+    source = ds;
+    name = await source.add(snapshot);
+    renderAccount();
+    await refreshTree();
+    const first = defaultFile(tree.filter((n) => n.path === name));
+    if (first) location.hash = fileHref(first).slice(1); // hashchange → route()
+  } else {
+    source = await DeviceFolderSource.create([snapshot]);
+    name = source.snapshots[0].name;
+    if (!(await useSource(source))) return;
+  }
+  const count = snapshot.files.filter((f) => MARKDOWN_EXT.test(f.path)).length;
+  const remembered = await rememberSnapshots(source.snapshots);
   toast(
     remembered
-      ? `Opened “${source.name}”: ${source.fileCount} files. Nothing was uploaded.`
-      : `Opened “${source.name}”. It won't be remembered after you close this page (browser storage unavailable).`,
+      ? `Added “${name}”: ${count} files. Nothing was uploaded.`
+      : `Added “${name}”. It won't be remembered after you close this page (browser storage unavailable).`,
   );
 }
 
 async function closeDeviceFolder() {
-  if (await useSource(homeSource)) await forgetSnapshot();
+  if (await useSource(homeSource)) await forgetSnapshots();
+}
+
+/** Close one of the folders opened from this device; closing the last one goes back home. */
+async function closeOneFolder(name: string) {
+  if (!(ds instanceof DeviceFolderSource)) return;
+  const source = ds;
+  if (source.snapshots.length <= 1) return closeDeviceFolder();
+  source.removeFolder(name);
+  renderAccount();
+  await refreshTree();
+  if (current?.path.startsWith(`${name}/`)) {
+    current = null;
+    const first = defaultFile(tree);
+    if (first) location.replace(fileHref(first)); // hashchange → route()
+  }
+  await rememberSnapshots(source.snapshots);
+  toast(`Closed “${name}”.`);
 }
 
 const openDialog = $<HTMLDialogElement>('open-dialog');
@@ -781,8 +818,8 @@ function treeHasFile(nodes: TreeNode[], path: string): boolean {
 
 async function start() {
   // A folder opened from this device earlier is shown again until it's closed.
-  const remembered = await recallSnapshot();
-  if (remembered) {
+  const remembered = await recallSnapshots();
+  if (remembered.length) {
     try {
       ds = await DeviceFolderSource.create(remembered);
       unsubscribe?.();
@@ -796,7 +833,7 @@ async function start() {
   try {
     await refreshTree();
     const requested = parseRoute(location.hash);
-    if (!requested || (remembered && !treeHasFile(tree, requested.path))) {
+    if (!requested || (remembered.length && !treeHasFile(tree, requested.path))) {
       const first = defaultFile(tree);
       if (!first) {
         showMessage('No markdown files', 'The configured folder has no .md files yet.');

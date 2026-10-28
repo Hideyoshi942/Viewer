@@ -183,6 +183,58 @@ body {
   padding-left: calc(8px + 1em);
 }
 
+/* A top-level folder opened from this device, with its close button. */
+.root-row {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.root-row:hover {
+  background: var(--bg-hover);
+}
+
+.root-row .row {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.root-row .row:hover {
+  background: none;
+}
+
+.remove-root {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.root-row:hover .remove-root,
+.remove-root:focus-visible {
+  opacity: 1;
+}
+
+.remove-root:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* No hover on touch screens: keep the button visible. */
+@media (hover: none) {
+  .remove-root {
+    opacity: 1;
+  }
+}
+
 .row.active {
   background: var(--accent-soft);
   color: var(--accent);

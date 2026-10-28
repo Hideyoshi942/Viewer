@@ -58,7 +58,7 @@ describe('snapshotFromZip', () => {
 
 describe('DeviceFolderSource', () => {
   it('serves the tree, files (\\n line endings), search and image URLs; refuses writes', async () => {
-    const source = await DeviceFolderSource.create(
+    const source = await DeviceFolderSource.create([
       snapshotFromZip(
         'n.zip',
         zipSync({
@@ -67,17 +67,43 @@ describe('DeviceFolderSource', () => {
           'n/guide/p.png': strToU8('png'),
         }),
       ),
-    );
+    ]);
 
     expect(source.fileCount).toBe(2);
     expect(source.canWrite).toBe(false);
-    expect((await source.listTree()).map((n) => n.name)).toEqual(['guide', 'README.md']);
-    expect((await source.readFile('README.md')).content).toBe('# Trang chủ\n\nHướng dẫn cài đặt.');
-    await expect(source.readFile('missing.md')).rejects.toMatchObject({ status: 404 });
-    expect((await source.search('huong dan')).map((h) => h.path)).toEqual(['README.md']);
-    expect(source.assetUrl('guide/p.png')).toMatch(/^blob:/);
-    expect(source.assetUrl('guide/p.png')).toBe(source.assetUrl('guide/p.png')); // cached
-    await expect(source.save('README.md', 'x', '')).rejects.toMatchObject({ status: 405 });
+    expect(source.name).toBe('n');
+    const tree = await source.listTree();
+    expect(tree.map((n) => n.name)).toEqual(['n']); // the picked folder itself is the top-level folder
+    expect(tree[0].children!.map((n) => n.name)).toEqual(['guide', 'README.md']);
+    expect((await source.readFile('n/README.md')).content).toBe('# Trang chủ\n\nHướng dẫn cài đặt.');
+    await expect(source.readFile('README.md')).rejects.toMatchObject({ status: 404 });
+    expect((await source.search('huong dan')).map((h) => h.path)).toEqual(['n/README.md']);
+    expect(source.assetUrl('n/guide/p.png')).toMatch(/^blob:/);
+    expect(source.assetUrl('n/guide/p.png')).toBe(source.assetUrl('n/guide/p.png')); // cached
+    await expect(source.save('n/README.md', 'x', '')).rejects.toMatchObject({ status: 405 });
     source.close();
+  });
+
+  it('adds each further folder as its own top-level folder, renaming clashes', async () => {
+    const md = (text: string) => new Blob([text], { type: 'text/markdown' });
+    const source = await DeviceFolderSource.create([{ name: 'notes', files: [{ path: 'a.md', blob: md('# A') }] }]);
+
+    expect(await source.add({ name: 'docs', files: [{ path: 'sub/b.md', blob: md('# B') }] })).toBe('docs');
+    expect(await source.add({ name: 'notes', files: [{ path: 'a.md', blob: md('# A2') }] })).toBe('notes (2)');
+
+    expect((await source.listTree()).map((n) => n.name)).toEqual(['docs', 'notes', 'notes (2)']);
+    expect((await source.readFile('notes/a.md')).content).toBe('# A');
+    expect((await source.readFile('notes (2)/a.md')).content).toBe('# A2');
+    expect((await source.readFile('docs/sub/b.md')).content).toBe('# B');
+    expect(source.snapshots.map((s) => s.name)).toEqual(['notes', 'docs', 'notes (2)']);
+    expect(source.name).toBe('notes + 2 more');
+    expect(source.fileCount).toBe(3);
+
+    source.removeFolder('notes');
+    expect((await source.listTree()).map((n) => n.name)).toEqual(['docs', 'notes (2)']);
+    await expect(source.readFile('notes/a.md')).rejects.toMatchObject({ status: 404 });
+    expect((await source.readFile('notes (2)/a.md')).content).toBe('# A2');
+    expect(source.snapshots.map((s) => s.name)).toEqual(['docs', 'notes (2)']);
+    expect(source.fileCount).toBe(2);
   });
 });

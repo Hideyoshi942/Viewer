@@ -117,25 +117,27 @@ async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore
   }
 }
 
-/** False if the browser refused (private mode, quota): the folder still works until the page closes. */
-export async function rememberSnapshot(snapshot: Snapshot): Promise<boolean> {
+/** False if the browser refused (private mode, quota): the folders still work until the page closes. */
+export async function rememberSnapshots(snapshots: Snapshot[]): Promise<boolean> {
   try {
-    await withStore('readwrite', (s) => s.put(snapshot, KEY));
+    await withStore('readwrite', (s) => s.put(snapshots, KEY));
     return true;
   } catch {
     return false;
   }
 }
 
-export async function recallSnapshot(): Promise<Snapshot | null> {
+export async function recallSnapshots(): Promise<Snapshot[]> {
   try {
-    return (await withStore<Snapshot | undefined>('readonly', (s) => s.get(KEY))) ?? null;
+    const stored = await withStore<Snapshot | Snapshot[] | undefined>('readonly', (s) => s.get(KEY));
+    if (!stored) return [];
+    return Array.isArray(stored) ? stored : [stored]; // older versions kept a single folder
   } catch {
-    return null;
+    return [];
   }
 }
 
-export async function forgetSnapshot(): Promise<void> {
+export async function forgetSnapshots(): Promise<void> {
   try {
     await withStore('readwrite', (s) => s.delete(KEY));
   } catch {
@@ -148,23 +150,64 @@ export async function forgetSnapshot(): Promise<void> {
 const readOnly = (..._args: unknown[]): Promise<never> =>
   Promise.reject(new ApiError(405, 'This folder was opened from your device and is read-only.'));
 
-/** Read-only DataSource over a Snapshot; images are served as blob: URLs. */
+/** "notes" → "notes (2)" when a folder of that name is already open. */
+function uniqueName(name: string, taken: Set<string>): string {
+  const base = name.replace(/[\\/]/g, '-').trim() || 'Folder';
+  let candidate = base;
+  for (let n = 2; taken.has(candidate); n++) candidate = `${base} (${n})`;
+  return candidate;
+}
+
+/**
+ * Read-only DataSource over one or more Snapshots. Each folder shows up as its own
+ * top-level folder ("notes/a.md"), so adding another folder adds a new root beside it.
+ * Images are served as blob: URLs.
+ */
 export class DeviceFolderSource implements DataSource {
   readonly canWrite = false;
   readonly deleteHint = '';
+  /** The open folders, as stored (each name is unique and is the top-level folder in the tree). */
+  readonly snapshots: Snapshot[] = [];
   private texts = new Map<string, string>();
   private images = new Map<string, Blob>();
   private urls = new Map<string, string>();
 
-  private constructor(readonly name: string) {}
-
-  static async create(snapshot: Snapshot): Promise<DeviceFolderSource> {
-    const source = new DeviceFolderSource(snapshot.name);
-    for (const { path, blob } of snapshot.files) {
-      if (MARKDOWN_EXT.test(path)) source.texts.set(path, (await blob.text()).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
-      else source.images.set(path, blob);
-    }
+  static async create(snapshots: Snapshot[]): Promise<DeviceFolderSource> {
+    const source = new DeviceFolderSource();
+    for (const snapshot of snapshots) await source.add(snapshot);
     return source;
+  }
+
+  /** Mount another folder as a new top-level folder; returns the name it got. */
+  async add(snapshot: Snapshot): Promise<string> {
+    const name = uniqueName(snapshot.name, new Set(this.snapshots.map((s) => s.name)));
+    for (const { path, blob } of snapshot.files) {
+      const full = `${name}/${path}`;
+      if (MARKDOWN_EXT.test(path)) this.texts.set(full, (await blob.text()).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
+      else this.images.set(full, blob);
+    }
+    this.snapshots.push({ ...snapshot, name });
+    return name;
+  }
+
+  /** Unmount one top-level folder. */
+  removeFolder(name: string) {
+    const prefix = `${name}/`;
+    for (const path of [...this.texts.keys()]) if (path.startsWith(prefix)) this.texts.delete(path);
+    for (const path of [...this.images.keys()]) if (path.startsWith(prefix)) this.images.delete(path);
+    for (const [path, url] of [...this.urls]) {
+      if (!path.startsWith(prefix)) continue;
+      URL.revokeObjectURL(url);
+      this.urls.delete(path);
+    }
+    const index = this.snapshots.findIndex((s) => s.name === name);
+    if (index >= 0) this.snapshots.splice(index, 1);
+  }
+
+  /** "notes" or "notes + 2 more". */
+  get name() {
+    const [first, ...rest] = this.snapshots.map((s) => s.name);
+    return rest.length ? `${first} + ${rest.length} more` : (first ?? '');
   }
 
   get fileCount() {
