@@ -17,6 +17,7 @@
             <span class="brand">MD Viewer</span>
             <span class="brand-actions">
               <button id="theme-toggle" class="btn small" type="button" title="Theme: auto">◐</button>
+              <button id="open-folder" class="btn small" type="button" title="Open a folder from this device">📂 Open</button>
               <button id="new-file" class="btn small" type="button" title="New file">+ New</button>
             </span>
           </div>
@@ -33,6 +34,7 @@
         <header class="topbar">
           <button id="menu-toggle" class="menu-toggle" aria-label="Show files">☰</button>
           <div id="breadcrumb" class="breadcrumb"></div>
+          <button id="open-folder-top" class="menu-toggle" aria-label="Open a folder from this device">📂</button>
           <div id="actions" class="actions"></div>
         </header>
         <div id="banner" class="banner" role="alert" hidden></div>
@@ -55,6 +57,27 @@
           <button class="btn" value="cancel">Keep editing</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="open-dialog" class="dialog">
+      <h2>Open a folder from this device</h2>
+      <p>
+        The markdown files are read right here in your browser to show them. Nothing is uploaded. The folder is
+        remembered on this device until you close it.
+      </p>
+      <div class="open-choices">
+        <button id="open-choose-folder" class="btn primary" type="button">Choose a folder</button>
+        <button id="open-choose-files" class="btn" type="button">Choose a .zip or .md files</button>
+      </div>
+      <p class="hint">
+        On a phone, choosing a folder often isn't possible. Zip the folder (Files app → Compress) and choose the
+        .zip, or select the .md files.
+      </p>
+      <form method="dialog" class="dialog-actions">
+        <button class="btn" value="cancel">Cancel</button>
+      </form>
+      <input id="folder-input" type="file" webkitdirectory multiple hidden />
+      <input id="files-input" type="file" multiple accept=".md,.markdown,.zip,application/zip,image/*" hidden />
     </dialog>
 
     <dialog id="changes-dialog" class="dialog dialog-wide">

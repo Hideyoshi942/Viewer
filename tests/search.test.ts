@@ -31,6 +31,12 @@ describe('searchDocs', () => {
     expect(hit.snippet).not.toContain('#');
   });
 
+  it('takes the snippet from the body, not the front matter', () => {
+    const [hit] = searchDocs([{ path: 'w.md', content: '---\ntitle: Tuần 1\n---\n\n# Tuần 1\n\nHọc Git tuần 1.\n' }], 'tuan');
+    expect(hit.snippet).not.toContain('title');
+    expect(hit.snippet).toContain('Học Git');
+  });
+
   it('matches folder names too', () => {
     expect(searchDocs(docs, 'notes').map((h) => h.path)).toEqual(['notes/deploy.md']);
   });

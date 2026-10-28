@@ -1152,3 +1152,27 @@ img.ProseMirror-separator {
   padding: 12px;
   margin: 0 !important;
 }
+
+/* ---------- Open a folder from this device ---------- */
+
+.open-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dialog p.hint {
+  font-size: 13px;
+}
+
+#open-folder-top {
+  margin-left: auto;
+}
+
+@media (max-width: 480px) {
+  .open-choices .btn {
+    flex: 1 1 100%;
+    padding: 10px 12px;
+  }
+}

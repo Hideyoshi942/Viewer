@@ -6,7 +6,7 @@ const csp = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'", // CodeMirror/ProseMirror inject <style> elements
-  "img-src 'self' data: https:",
+  "img-src 'self' data: blob: https:", // blob: = images from a folder opened on the device
   "connect-src 'self' https://api.github.com",
   "object-src 'none'",
   "base-uri 'self'",

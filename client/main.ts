@@ -3,6 +3,16 @@ import './style.css';
 import { ApiError, ConflictError, LocalApi, type DataSource } from './data';
 import type { ContentEditor } from './editor';
 import { renderChanges } from './changes';
+import {
+  canPickDirectory,
+  DeviceFolderSource,
+  forgetSnapshot,
+  pickDirectory,
+  recallSnapshot,
+  rememberSnapshot,
+  snapshotFromFiles,
+  type Snapshot,
+} from './device-folder';
 import { applyTheme, loadTheme, nextTheme, renderSearchResults, renderToc } from './extras';
 import { uploadImages } from './images';
 import { fileHref, parseRoute } from './links';
@@ -19,7 +29,11 @@ const hosted = import.meta.env.VITE_HOSTED
       base: import.meta.env.BASE_URL,
     })
   : null;
-const ds: DataSource = hosted ?? new LocalApi();
+/** The folder this app was started with (server folder, or the repo's docs on GitHub Pages). */
+const homeSource: DataSource = hosted ?? new LocalApi();
+/** What's shown right now: the home folder, or a folder opened from this device. */
+let ds: DataSource = homeSource;
+let unsubscribe: (() => void) | undefined;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const layout = $<HTMLElement>('layout');
@@ -169,7 +183,7 @@ function renderActions() {
         button('Delete', () => void deleteCurrent(), { kind: 'danger' }),
       );
     }
-  } else if (current && hosted?.config.repo) {
+  } else if (current && hosted && ds === hosted && hosted.config.repo) {
     const link = document.createElement('a');
     link.className = 'btn';
     link.href = hosted.editUrl(current.path);
@@ -562,7 +576,19 @@ const connectError = $<HTMLElement>('connect-error');
 const connectSubmit = $<HTMLButtonElement>('connect-submit');
 
 function renderAccount() {
-  if (!hosted?.config.repo) return;
+  if (ds instanceof DeviceFolderSource) {
+    const device = ds;
+    const label = document.createElement('span');
+    label.textContent = `📂 ${device.name} · ${device.fileCount} files · read-only`;
+    label.title = 'Opened from this device; nothing was uploaded';
+    account.replaceChildren(label, button('Close', () => void closeDeviceFolder(), { className: 'small' }));
+    account.hidden = false;
+    return;
+  }
+  if (!hosted?.config.repo) {
+    account.hidden = true;
+    return;
+  }
   account.hidden = false;
   const label = document.createElement('span');
   if (hosted.connected) {
@@ -604,6 +630,101 @@ $('connect-form').addEventListener('submit', async (e) => {
   }
 });
 
+// ---------- Switching folders (home ⇄ a folder opened from this device) ----------
+
+/** Show another data source in place of the current one. */
+async function useSource(next: DataSource): Promise<boolean> {
+  if (editor && !exitEdit()) return false;
+  unsubscribe?.();
+  if (ds instanceof DeviceFolderSource && ds !== next) ds.close();
+  ds = next;
+  unsubscribe = ds.subscribe?.(onFsEvent);
+  current = null;
+  hideBanner();
+  filterInput.value = '';
+  sidebar.setFilter('');
+  searchResults.hidden = true;
+  newFileButton.hidden = !ds.canWrite;
+  renderAccount();
+  await refreshTree();
+  const first = defaultFile(tree);
+  if (!first) {
+    history.replaceState(null, '', location.pathname + location.search);
+    breadcrumb.replaceChildren();
+    toc.hidden = true;
+    showMessage('No markdown files', 'This folder has no .md files.');
+    renderActions();
+    return true;
+  }
+  const href = fileHref(first);
+  if (location.hash === href) await route();
+  else location.replace(href); // hashchange → route()
+  return true;
+}
+
+async function openSnapshot(snapshot: Snapshot | null) {
+  if (!snapshot) return; // cancelled
+  if (!snapshot.files.some((f) => MARKDOWN_EXT.test(f.path))) {
+    toast('No .md files found in what you picked.', 'error');
+    return;
+  }
+  const source = await DeviceFolderSource.create(snapshot);
+  if (!(await useSource(source))) return;
+  const remembered = await rememberSnapshot(snapshot);
+  toast(
+    remembered
+      ? `Opened “${source.name}”: ${source.fileCount} files. Nothing was uploaded.`
+      : `Opened “${source.name}”. It won't be remembered after you close this page (browser storage unavailable).`,
+  );
+}
+
+async function closeDeviceFolder() {
+  if (await useSource(homeSource)) await forgetSnapshot();
+}
+
+const openDialog = $<HTMLDialogElement>('open-dialog');
+const folderInput = $<HTMLInputElement>('folder-input');
+const filesInput = $<HTMLInputElement>('files-input');
+
+function showOpenDialog() {
+  layout.classList.remove('nav-open');
+  openDialog.showModal();
+}
+
+$('open-folder').addEventListener('click', showOpenDialog);
+$('open-folder-top').addEventListener('click', showOpenDialog);
+
+$('open-choose-folder').addEventListener('click', async () => {
+  openDialog.close();
+  if (canPickDirectory()) {
+    try {
+      await openSnapshot(await pickDirectory());
+    } catch (err) {
+      toast(`Could not read the folder: ${(err as Error).message}`, 'error');
+    }
+  } else {
+    folderInput.click();
+  }
+});
+
+$('open-choose-files').addEventListener('click', () => {
+  openDialog.close();
+  filesInput.click();
+});
+
+for (const input of [folderInput, filesInput]) {
+  input.addEventListener('change', async () => {
+    const files = [...(input.files ?? [])];
+    input.value = ''; // allow picking the same thing again
+    if (files.length === 0) return;
+    try {
+      await openSnapshot(await snapshotFromFiles(files));
+    } catch (err) {
+      toast(`Could not read the files: ${(err as Error).message}`, 'error');
+    }
+  });
+}
+
 // ---------- Wiring ----------
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -640,7 +761,7 @@ $('menu-toggle').addEventListener('click', () => layout.classList.toggle('nav-op
 $('backdrop').addEventListener('click', () => layout.classList.remove('nav-open'));
 
 window.addEventListener('hashchange', () => void route());
-ds.subscribe?.(onFsEvent);
+unsubscribe = ds.subscribe?.(onFsEvent);
 renderAccount();
 
 window.addEventListener('keydown', (e) => {
@@ -654,10 +775,28 @@ window.addEventListener('beforeunload', (e) => {
   if (isDirty()) e.preventDefault();
 });
 
+function treeHasFile(nodes: TreeNode[], path: string): boolean {
+  return nodes.some((n) => (n.type === 'file' ? n.path === path : treeHasFile(n.children ?? [], path)));
+}
+
 async function start() {
+  // A folder opened from this device earlier is shown again until it's closed.
+  const remembered = await recallSnapshot();
+  if (remembered) {
+    try {
+      ds = await DeviceFolderSource.create(remembered);
+      unsubscribe?.();
+      unsubscribe = undefined;
+      newFileButton.hidden = true;
+      renderAccount();
+    } catch {
+      ds = homeSource;
+    }
+  }
   try {
     await refreshTree();
-    if (!parseRoute(location.hash)) {
+    const requested = parseRoute(location.hash);
+    if (!requested || (remembered && !treeHasFile(tree, requested.path))) {
       const first = defaultFile(tree);
       if (!first) {
         showMessage('No markdown files', 'The configured folder has no .md files yet.');

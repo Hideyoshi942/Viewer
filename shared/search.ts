@@ -56,8 +56,13 @@ export function searchDocs(docs: SearchDoc[], query: string, limit = 30): Search
     let score = terms.filter((t) => foldedTitle.includes(t)).length * 100;
     for (const t of terms) score += Math.min(folded.split(t).length - 1, 20);
 
-    const first = folded.indexOf(terms[0]);
-    scored.push({ hit: { path: doc.path, title, snippet: first === -1 ? '' : snippetAt(doc.content, map[first]) }, score });
+    // Snippet from the body when the term appears there; front matter only as a last resort.
+    const bodyStart = splitFrontMatter(doc.content).frontMatter.length;
+    const foldedBodyStart = Math.max(0, map.findIndex((orig) => orig >= bodyStart));
+    const inBody = folded.indexOf(terms[0], foldedBodyStart);
+    const first = inBody !== -1 ? inBody : folded.indexOf(terms[0]);
+    const snippet = first === -1 ? '' : snippetAt(doc.content, map[first], inBody !== -1 ? bodyStart : 0);
+    scored.push({ hit: { path: doc.path, title, snippet }, score });
   }
 
   return scored
@@ -66,15 +71,15 @@ export function searchDocs(docs: SearchDoc[], query: string, limit = 30): Search
     .map((s) => s.hit);
 }
 
-function snippetAt(content: string, index: number): string {
-  const start = Math.max(0, index - SNIPPET_RADIUS);
+function snippetAt(content: string, index: number, minStart: number): string {
+  const start = Math.max(minStart, index - SNIPPET_RADIUS);
   const end = Math.min(content.length, index + SNIPPET_RADIUS);
   const text = content
     .slice(start, end)
     .replace(/[#>*_`|[\]]+/g, ' ') // drop most markdown syntax
     .replace(/\s+/g, ' ')
     .trim();
-  return `${start > 0 ? '…' : ''}${text}${end < content.length ? '…' : ''}`;
+  return `${start > minStart ? '…' : ''}${text}${end < content.length ? '…' : ''}`;
 }
 
 /** [start, end) ranges in `text` where any of the query terms occur, for highlighting. */

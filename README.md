@@ -8,6 +8,7 @@ See [PLAN.md](PLAN.md) for the design decisions.
 
 - **Sidebar tree** of every `.md` file at any depth, natural sort, remembered open/closed folders.
 - **Rendered pages:** GFM tables and task lists, code highlighting, images next to the markdown, links between files (`../other.md#heading`), Mermaid diagrams, a table of contents on wide screens.
+- **📂 Open a folder from your device** (phone or computer) and read it right away: pick a folder, a `.zip` of it, or some `.md` files. It is read inside the browser, so nothing is uploaded. Subfolders, links, images and search all work, and the folder is remembered on that device until you **Close** it. It is read-only. On phones, choosing a folder usually isn't possible, so zip it (Files app → Compress) and pick the zip.
 - **Search** across file names and file contents. Accents don't matter: `huong dan` finds `Hướng dẫn`.
 - **Edit in place (Visual):** click **Edit** and type straight into the rendered page, with a toolbar for headings, lists, tables, links, images, and so on. **Markdown** switches to the raw text with a live preview. `Ctrl+S` saves.
 - **Only your edits change the file:** lines you didn't touch are written back byte-for-byte, even in Visual mode. **Changes** shows the exact diff before you save. Front matter (`---` YAML / `+++` TOML) is shown as "Properties" and kept verbatim. If a file uses syntax Visual mode can't show (e.g. reference-style links), a banner offers Markdown mode for those parts.

@@ -110,12 +110,13 @@ export class Sidebar {
   }
 }
 
-/** README.md / index.md at the top level, otherwise the first file in the tree. */
+/** README.md / index.md, else the first file at this level, else look inside folders (in order). */
 export function defaultFile(tree: TreeNode[]): string | null {
   const preferred = tree.find((n) => n.type === 'file' && /^(readme|index)\.(md|markdown)$/i.test(n.name));
   if (preferred) return preferred.path;
+  const firstFile = tree.find((n) => n.type === 'file');
+  if (firstFile) return firstFile.path;
   for (const node of tree) {
-    if (node.type === 'file') return node.path;
     const nested = defaultFile(node.children ?? []);
     if (nested) return nested;
   }
