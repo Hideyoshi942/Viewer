@@ -64,9 +64,19 @@ export function renderToc(toc: HTMLElement, article: HTMLElement, filePath: stri
     return;
   }
 
+  const head = document.createElement('div');
+  head.className = 'toc-head';
   const title = document.createElement('p');
   title.className = 'toc-title';
   title.textContent = 'On this page';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'btn small toc-close';
+  closeBtn.dataset.closeToc = '1';
+  closeBtn.setAttribute('aria-label', 'Close table of contents');
+  closeBtn.textContent = '✕';
+  head.append(title, closeBtn);
+
   const list = document.createElement('ul');
   const links = new Map<Element, HTMLAnchorElement>();
   for (const h of headings) {
@@ -79,7 +89,7 @@ export function renderToc(toc: HTMLElement, article: HTMLElement, filePath: stri
     list.append(li);
     links.set(h, a);
   }
-  toc.replaceChildren(title, list);
+  toc.replaceChildren(head, list);
   toc.hidden = false;
 
   // The active entry is the last heading that has scrolled past the top third of the screen.
@@ -113,11 +123,17 @@ export function loadTheme(): Theme {
   }
 }
 
+export function updateThemeColor() {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (meta) meta.content = isDark() ? '#0d1117' : '#ffffff';
+}
+
 export function applyTheme(theme: Theme, button: HTMLElement) {
   if (theme === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
   button.textContent = THEME_ICON[theme];
   button.title = `Theme: ${theme} (click to change)`;
+  updateThemeColor();
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {

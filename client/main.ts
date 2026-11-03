@@ -13,7 +13,7 @@ import {
   snapshotFromFiles,
   type Snapshot,
 } from './device-folder';
-import { applyTheme, loadTheme, nextTheme, renderSearchResults, renderToc } from './extras';
+import { applyTheme, loadTheme, nextTheme, renderSearchResults, renderToc, updateThemeColor } from './extras';
 import { uploadImages } from './images';
 import { fileHref, parseRoute } from './links';
 import { renderMarkdown } from './render';
@@ -47,8 +47,10 @@ const conflictDialog = $<HTMLDialogElement>('conflict-dialog');
 const toastEl = $<HTMLElement>('toast');
 const banner = $<HTMLElement>('banner');
 const toc = $<HTMLElement>('toc');
+const tocToggle = $<HTMLButtonElement>('toc-toggle');
 const searchResults = $<HTMLElement>('search-results');
 const themeToggle = $<HTMLButtonElement>('theme-toggle');
+const installButton = $<HTMLButtonElement>('install-app');
 const changesDialog = $<HTMLDialogElement>('changes-dialog');
 
 let theme = loadTheme();
@@ -207,6 +209,13 @@ function scrollToAnchor(anchor: string) {
   else if (!editor) window.scrollTo(0, 0);
 }
 
+function syncTocState() {
+  const hasToc = !toc.hidden && !editor;
+  layout.classList.toggle('has-toc', hasToc);
+  tocToggle.hidden = !hasToc;
+  if (!hasToc) layout.classList.remove('toc-open');
+}
+
 // ---------- Viewing ----------
 
 function showCurrent(anchor = '') {
@@ -218,7 +227,7 @@ function showCurrent(anchor = '') {
   document.title = `${h1 || current.path.split('/').pop()} — MD Viewer`;
   if (editor) toc.hidden = true;
   else renderToc(toc, content, current.path);
-  layout.classList.toggle('has-toc', !toc.hidden);
+  syncTocState();
   scrollToAnchor(anchor);
 }
 
@@ -228,7 +237,7 @@ async function refreshTree() {
 }
 
 async function route() {
-  layout.classList.remove('nav-open');
+  layout.classList.remove('nav-open', 'toc-open');
   const parsed = parseRoute(location.hash);
   if (!parsed) return;
 
@@ -260,6 +269,8 @@ async function route() {
     }
   } catch (err) {
     if (token !== loadToken) return;
+    toc.hidden = true;
+    syncTocState();
     showMessage('Could not open file', `${parsed.path}: ${(err as Error).message}`);
   }
   renderActions();
@@ -288,8 +299,8 @@ async function openEditor(text: string) {
   opening = true;
   try {
     layout.classList.add('editing');
-    layout.classList.remove('has-toc');
     toc.hidden = true;
+    syncTocState();
     layout.classList.toggle('visual', editMode === 'visual');
     layout.classList.toggle('source', editMode === 'source');
     // Editors are loaded on first use so people who only read don't download them.
@@ -491,6 +502,8 @@ async function deleteCurrent() {
     } else {
       history.replaceState(null, '', location.pathname);
       breadcrumb.replaceChildren();
+      toc.hidden = true;
+      syncTocState();
       showMessage('No markdown files', 'The folder is empty now.');
       renderActions();
     }
@@ -527,6 +540,8 @@ async function checkCurrentOnDisk(path: string) {
       showBanner('This file was deleted or moved outside MD Viewer. Copy your changes before leaving.');
     } else {
       current = null;
+      toc.hidden = true;
+      syncTocState();
       showMessage('File removed', `${path} was deleted or moved outside MD Viewer.`);
       renderActions();
     }
@@ -658,6 +673,7 @@ async function useSource(next: DataSource): Promise<boolean> {
     history.replaceState(null, '', location.pathname + location.search);
     breadcrumb.replaceChildren();
     toc.hidden = true;
+    syncTocState();
     showMessage('No markdown files', 'This folder has no .md files.');
     renderActions();
     return true;
@@ -724,7 +740,7 @@ const folderInput = $<HTMLInputElement>('folder-input');
 const filesInput = $<HTMLInputElement>('files-input');
 
 function showOpenDialog() {
-  layout.classList.remove('nav-open');
+  layout.classList.remove('nav-open', 'toc-open');
   openDialog.showModal();
 }
 
@@ -791,11 +807,122 @@ themeToggle.addEventListener('click', () => {
   applyTheme(theme, themeToggle);
   if (current && !editor) showCurrent(); // re-draw diagrams in the new colours
 });
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  updateThemeColor();
+  if (theme === 'auto' && current && !editor) showCurrent();
+});
+
 newFileButton.hidden = !ds.canWrite;
 newFileButton.addEventListener('click', () => void newFile());
 
-$('menu-toggle').addEventListener('click', () => layout.classList.toggle('nav-open'));
-$('backdrop').addEventListener('click', () => layout.classList.remove('nav-open'));
+$('menu-toggle').addEventListener('click', () => {
+  layout.classList.remove('toc-open');
+  layout.classList.toggle('nav-open');
+});
+$('sidebar-close').addEventListener('click', () => layout.classList.remove('nav-open'));
+tocToggle.addEventListener('click', () => {
+  layout.classList.remove('nav-open');
+  layout.classList.toggle('toc-open');
+});
+$('backdrop').addEventListener('click', () => layout.classList.remove('nav-open', 'toc-open'));
+
+// Close mobile drawers when selecting a file, search hit, or TOC link (even if the hash didn't change).
+$('tree').addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('a.row.file')) layout.classList.remove('nav-open');
+});
+searchResults.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('a.hit')) layout.classList.remove('nav-open');
+});
+toc.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (target.closest('a') || target.closest('[data-close-toc]')) {
+    layout.classList.remove('toc-open');
+  }
+});
+
+// Touch swipe gestures for mobile sidebar drawer (swipe right from left edge to open, swipe left to close).
+let touchStartX = 0;
+let touchStartY = 0;
+let touchTracking = false;
+
+window.addEventListener(
+  'touchstart',
+  (e) => {
+    if (e.touches.length !== 1 || editor) {
+      touchTracking = false;
+      return;
+    }
+    const t = e.touches[0];
+    const isOpen = layout.classList.contains('nav-open');
+    // Track either a left-edge swipe-to-open or anywhere when the drawer is already open.
+    if (isOpen || t.clientX <= 28) {
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+      touchTracking = true;
+    } else {
+      touchTracking = false;
+    }
+  },
+  { passive: true },
+);
+
+window.addEventListener(
+  'touchend',
+  (e) => {
+    if (!touchTracking || e.changedTouches.length !== 1) return;
+    touchTracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    if (Math.abs(dx) < 56 || Math.abs(dy) > Math.abs(dx) * 0.7) return;
+    if (dx > 0 && touchStartX <= 28 && !layout.classList.contains('nav-open')) {
+      layout.classList.remove('toc-open');
+      layout.classList.add('nav-open');
+    } else if (dx < 0 && layout.classList.contains('nav-open')) {
+      layout.classList.remove('nav-open');
+    }
+  },
+  { passive: true },
+);
+
+// ---------- PWA Service Worker & Install Prompt ----------
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+let deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e as BeforeInstallPromptEvent;
+  installButton.hidden = false;
+});
+
+installButton.addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  await deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') {
+    installButton.hidden = true;
+    deferredInstallPrompt = null;
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  installButton.hidden = true;
+  deferredInstallPrompt = null;
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
+      // Service worker registration is progressive enhancement.
+    });
+  });
+}
 
 window.addEventListener('hashchange', () => void route());
 unsubscribe = ds.subscribe?.(onFsEvent);
