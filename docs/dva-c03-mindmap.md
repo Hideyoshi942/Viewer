@@ -1,11 +1,11 @@
-# Sơ đồ tư duy ôn thi AWS Certified Developer - Associate (DVA-C03)
+# Sơ đồ tư duy AWS DVA-C03 theo Topics & Lessons kèm Kiến thức chính
 
-> **Cấu trúc kỳ thi DVA-C03** *(áp dụng từ 01/12/2026)*: **65 câu hỏi** (50 câu tính điểm + 15 câu thử nghiệm) · **130 phút** (+30 phút ESL = 160 phút) · **Điểm đỗ 720/1000** · Không trừ điểm câu sai.
-> **Mẹo xem:** Bấm nút **⤢ Phóng to** ở góc trên bên phải mỗi sơ đồ để mở toàn màn hình và zoom `+`/`-` khi học.
+> **Cấu trúc kỳ thi DVA-C03** *(áp dụng từ 01/12/2026)*: **65 câu hỏi** (50 câu tính điểm + 15 câu thử nghiệm) · **130 phút** (+30 phút ESL) · **Điểm đỗ 720/1000**.
+> **Mẹo xem:** Bấm **⤢ Phóng to** ở góc trên bên phải mỗi sơ đồ để mở toàn màn hình và zoom `+` / `-` khi học.
 
 ---
 
-## 1. Tỷ trọng 4 Domain trong đề thi DVA-C03
+## Tổng quan: 4 Domains & 16 Topics (38 Lessons)
 
 ```mermaid
 pie showData
@@ -16,178 +16,171 @@ pie showData
     "Domain 4: Troubleshooting and Optimization" : 22
 ```
 
+```mermaid
+mindmap
+  root((AWS DVA-C03: 16 Topics))
+    D1["Domain 1: Development 30%"]
+      T2["Chủ đề 2: EC2, ELB/ASG, VPC, Route 53 (Ch.5,6,7,9,10)"]
+      T3["Chủ đề 3: RDS, Aurora, ElastiCache (Ch.8)"]
+      T4["Chủ đề 4: S3 & CloudFront (Ch.11,13,15)"]
+      T5["Chủ đề 5: ECS, ECR, Fargate, EB (Ch.16,17)"]
+      T6["Chủ đề 6: AWS Lambda (Ch.21)"]
+      T7["Chủ đề 7: DynamoDB & DAX (Ch.22)"]
+      T8["Chủ đề 8: API Gateway (Ch.23)"]
+      T9["Chủ đề 9: SQS, SNS, Kinesis, EventBridge (Ch.19,31)"]
+      T10["Chủ đề 10: Step Functions & AppSync (Ch.28)"]
+      T11["Chủ đề 11 MỚI: Bedrock, AgentCore, Q, Kiro (Ch.35.0-35.5)"]
+    D2["Domain 2: Security 26%"]
+      T1["Chủ đề 1: IAM, AWS CLI & SDK (Ch.3,4,12)"]
+      T12["Chủ đề 12: Cognito & Advanced Identity (Ch.27,29)"]
+      T13["Chủ đề 13: KMS, Secrets, SSM & S3 Sec (Ch.14,30)"]
+    D3["Domain 3: Testing & Deployment 22%"]
+      T14["Chủ đề 14: CloudFormation, SAM & CDK (Ch.18,25,26)"]
+      T15["Chủ đề 15: CI/CD Pipelines (Ch.24)"]
+    D4["Domain 4: Troubleshoot & Optimize 22%"]
+      T16["Chủ đề 16: CloudWatch, X-Ray, ADOT & Exam (Ch.1,20,33,W0)"]
+```
+
 ---
 
-## 2. Sơ đồ tư duy tổng thể DVA-C03 (Toàn cảnh 4 Domain)
+## Nhóm 1 — Domain 2: Security (Chủ đề 1, 12, 13)
 
 ```mermaid
 mindmap
-  root((AWS DVA-C03))
-    D1["Domain 1: Development (30%)"]
-      Serverless["Compute & API"]
-        Lambda["Lambda: Event, Layer, Alias, Version"]
-        APIGW["API Gateway: REST vs HTTP, Authorizer, Stage"]
-      Storage["Data & Storage"]
-        DynamoDB["DynamoDB: PK/SK, GSI/LSI, Streams, DAX, TTL"]
-        S3["S3: Presigned URL, Multipart, Event, CORS"]
-        ElastiCache["ElastiCache: Redis vs Memcached, Lazy/Write-through"]
-      Messaging["Messaging & Workflow"]
-        SQS["SQS: Standard vs FIFO, Visibility Timeout, DLQ"]
-        SNS["SNS: Pub/Sub Fan-out, Filter Policy"]
-        EventBridge["EventBridge: Event Bus, Rule, Scheduler"]
-        StepFn["Step Functions: Standard vs Express"]
-        Kinesis["Kinesis: Data Streams vs Firehose"]
-      AI_Dev["AI Mới trong DVA-C03"]
-        Bedrock["Amazon Bedrock: InvokeModel, Converse, Streaming"]
-        AgentCore["Bedrock AgentCore: Action Group, Session, MCP"]
-        Q_Kiro["Amazon Q Developer & Kiro: Spec-driven Dev"]
-    D2["Domain 2: Security (26%)"]
-      Identity["Identity & Access"]
-        IAM["IAM: Policy Evaluation, Role, STS AssumeRole"]
-        Cognito["Cognito: User Pool AuthN vs Identity Pool AuthZ"]
-      Encryption["Encryption & Secrets"]
-        KMS["KMS: CMK, Envelope Encryption, GenerateDataKey"]
-        Secrets["Secrets Manager Rotate vs SSM Parameter Store"]
-      DataSec["Network & App Security"]
-        S3Sec["S3: Bucket Policy, Block Public Access, OAC"]
-      AISec["Task 2.3 Mới: AI Security"]
-        Guardrails["Bedrock Guardrails: PII, Denied Topics, Prompt Injection"]
-        Privacy["Data Privacy: Zero-retention, VPC PrivateLink"]
-        AgentSec["Agent Security: Tool AuthZ, Session Isolation, Human-in-the-loop"]
-    D3["Domain 3: Testing & Deployment (22%)"]
-      Package["Packaging & Containers"]
-        ECR["ECR: Immutable Tags, Lifecycle, Image Scan"]
-        ECS["ECS / Fargate / EKS: Task Definition, IAM Task Role"]
-      Testing["Testing Mới"]
-        UnitInt["Local Test: SAM CLI, AWS SDK Mocking"]
-        AITest["AI Test Gen: Q Developer & Kiro Regression/Coverage"]
-      CICD["CI/CD & Deploy"]
-        CodeSuite["CodeConnections + CodeBuild + CodeDeploy + CodePipeline"]
-        DeployStrat["Strategy: AllAtOnce, Rolling, Canary, Linear, Blue/Green"]
-      IaC["Infrastructure as Code"]
-        CFN_SAM_CDK["CloudFormation Drift vs SAM vs CDK"]
-    D4["Domain 4: Troubleshooting & Optimization (22%)"]
-      Observe["Observability"]
-        CW["CloudWatch: Logs Insights, Custom Metrics, Alarms"]
-        Trace["X-Ray + ADOT OpenTelemetry + Application Signals"]
-        AIDebug["Amazon Q Developer: Log Analysis & Root Cause"]
-      Optimize["Performance & Cost"]
-        LambdaOpt["Lambda: Memory=CPU, Provisioned Concurrency, SnapStart"]
-        DynamoOpt["DynamoDB: Hot Partition, Adaptive Capacity, S3 Offload"]
-        APIOption["API Caching & CloudFront TTL / Invalidation"]
+  root((Domain 2: Security))
+    T1["Chủ đề 1: IAM, CLI & SDK"]
+      L3["Ch.03: Region, AZ, Root Account + MFA"]
+      L4["Ch.04: IAM Users, Groups, Roles, Policies"]
+        K4["Explicit Deny > Allow > Implicit Deny; Least Privilege"]
+      L12["Ch.12: AWS CLI, SDK & Credentials Chain"]
+        K12["Thứ tự Creds: Env -> Shared Creds -> Container/EC2 Instance Profile"]
+        K12b["STS AssumeRole + ExternalId + MFA; Exponential Backoff"]
+    T12["Chủ đề 12: Cognito & Advanced Identity"]
+      L27["Ch.27: Cognito User Pools vs Identity Pools"]
+        K27a["User Pool: AuthN -> JWT ID/Access/Refresh Token"]
+        K27b["Identity Pool: Đổi Token lấy AWS Creds tạm qua STS"]
+      L29["Ch.29: Advanced Identity"]
+        K29["SAML 2.0 Federation, STS AssumeRoleWithWebIdentity, IAM Permission Boundary"]
+    T13["Chủ đề 13: Mã hóa, Secrets & S3 Security"]
+      L14["Ch.14: Amazon S3 Security"]
+        K14a["SSE-S3 AES-256 vs SSE-KMS Audit/Rotate vs SSE-C"]
+        K14b["Bucket Policy, Block Public Access, Presigned URL Expiry"]
+      L30["Ch.30: KMS, Secrets Manager & SSM"]
+        K30a["KMS GenerateDataKey -> Envelope Encryption; Encrypt trực tiếp max 4 KB"]
+        K30b["Secrets Manager auto-rotate RDS vs SSM Parameter Store rẻ, phân cấp"]
 ```
 
 ---
 
-## 3. Domain 1 (30%) — Kiến trúc Serverless & Tích hợp AI (Bedrock / AgentCore)
-
-```mermaid
-flowchart LR
-    Client["Client / Web / Mobile"] --> CF["CloudFront + S3 Static / OAC"]
-    Client --> APIGW["API Gateway (REST / HTTP / WebSocket)"]
-    APIGW --> Auth["Cognito Authorizer / Lambda Authorizer"]
-    APIGW --> Lambda["AWS Lambda"]
-
-    Lambda -->|Sync CRUD| DDB["DynamoDB (PK/SK + GSI + DAX)"]
-    Lambda -->|Large > 400KB| S3["Amazon S3 (Presigned URL)"]
-    Lambda -->|Async Queue| SQS["SQS + DLQ"]
-    Lambda -->|Pub/Sub| SNS["SNS Fan-out"]
-    SNS --> SQS
-    SQS --> Worker["Worker Lambda / ECS Fargate"]
-
-    Lambda -->|AI Converse / Stream| Bedrock["Amazon Bedrock (FM)"]
-    Bedrock -->|Safety Filter| Guard["Bedrock Guardrails"]
-    Lambda -->|Agent Action| AgentCore["Bedrock AgentCore (Session + Memory + MCP)"]
-```
-
-### Từ khóa ăn điểm Domain 1
-- **Lambda**: `6 MB` sync payload, `256 KB` async payload, `15 phút` max timeout, `10 GB` `/tmp`, `Env Vars` max `4 KB` (mã hóa bằng KMS), tái sử dụng DB connection ngoài handler.
-- **DynamoDB**: Item max `400 KB` (lớn hơn -> lưu S3 + lưu pointer); `1 RCU = 4 KB` strong / `8 KB` eventual; `1 WCU = 1 KB`; `ProvisionedThroughputExceededException` -> Exponential Backoff + Jitter / On-Demand / DAX.
-- **SQS vs SNS vs EventBridge**: SQS pull + buffer + DLQ (`MaxReceiveCount`); SNS push fan-out; EventBridge routing theo event pattern + SaaS + Scheduler.
-- **Bedrock (DVA-C03 mới)**: Dùng `Converse` / `ConverseStream` API để gọi thống nhất nhiều Foundation Models; xử lý `ThrottlingException` bằng retry + backoff; dùng **AgentCore** để tách Action Groups (Lambda), Session & Memory, gọi tool qua **MCP**.
-
----
-
-## 4. Domain 2 (26%) — Bảo mật & Task 2.3 AI Security
+## Nhóm 2 — Hạ tầng, Lưu trữ, DB & Containers (Chủ đề 2, 3, 4, 5)
 
 ```mermaid
 mindmap
-  root((Domain 2: Security 26%))
-    IAM_STS["IAM & STS"]
-      Eval["Explicit Deny > Allow > Implicit Deny"]
-      AssumeRole["STS AssumeRole: Cross-account, Temporary Creds"]
-      PassRole["iam:PassRole: Giao Role cho Lambda/ECS/EC2"]
-      ExecRole["Lambda Execution Role vs Resource Policy"]
-    Cognito["Amazon Cognito"]
-      UserPool["User Pool: Đăng nhập, JWT ID/Access/Refresh Token"]
-      IdentityPool["Identity Pool: Đổi Token lấy AWS Creds tạm STS"]
-    KMS_Secrets["KMS & Secrets"]
-      Envelope["Envelope Encryption: GenerateDataKey -> Data Key"]
-      KMSLimit["KMS Encrypt trực tiếp max 4 KB"]
-      SecretsMgr["Secrets Manager: Tự động Rotate DB Password"]
-      SSM["SSM Parameter Store: Rẻ, lưu config phân cấp"]
-    AISecurity["Task 2.3 Mới: AI Security"]
-      Guardrails["Bedrock Guardrails: Chặn PII, Toxic, Prompt Injection"]
-      PrivateLink["VPC Endpoint PrivateLink: Không đi qua Internet"]
-      ZeroTrain["Data Privacy: Dữ liệu không dùng để train lại model"]
-      AgentControl["Agent: Least-privilege Tool AuthZ + Human-in-the-loop"]
-      LogMask["Che giấu PII trước khi ghi CloudWatch / Invocation Logs"]
+  root((Compute, DB, Storage & Containers))
+    T2["Chủ đề 2: EC2, ELB/ASG, VPC & Route 53"]
+      L5["Ch.05: EC2 Fundamentals"]
+        K5["User Data boot script; IMDSv2 bắt buộc Token chống SSRF"]
+      L6["Ch.06: EC2 Instance Storage"]
+        K6["EBS gắn 1 AZ; EFS NFS gắn nhiều AZ; Instance Store tạm mất khi Stop"]
+      L7["Ch.07: ELB + ASG"]
+        K7["ALB Layer 7 HTTP/gRPC/Path vs NLB Layer 4 TCP/Static IP; Sticky Sessions"]
+      L9["Ch.09: Route 53"]
+        K9["Alias trỏ AWS Resource miễn phí; Weighted/Latency/Failover/Geolocation"]
+      L10["Ch.10: VPC Fundamentals"]
+        K10["Security Group Stateful Allow vs NACL Stateless Allow/Deny; VPC Endpoints"]
+    T3["Chủ đề 3: RDS, Aurora & ElastiCache"]
+      L8["Ch.08: RDS + Aurora + ElastiCache"]
+        K8a["RDS Multi-AZ HA/Failover vs Read Replica Scale Read; IAM DB Auth"]
+        K8b["Aurora Serverless v2; ElastiCache Redis Auth/SortedSet vs Memcached"]
+        K8c["Lazy Loading cache miss vs Write-Through nhất quán + TTL"]
+    T4["Chủ đề 4: Amazon S3 & CloudFront"]
+      L11["Ch.11: S3 Intro - Bucket, Versioning, Storage Classes"]
+      L13["Ch.13: Advanced S3 - Lifecycle, Multipart >100MB, S3 Select, CRR/SRR"]
+      L15["Ch.15: CloudFront - OAC, Signed URL 1 file vs Signed Cookie nhiều file"]
+    T5["Chủ đề 5: ECS, ECR, Fargate & Beanstalk"]
+      L16["Ch.16: ECS, ECR & Fargate"]
+        K16a["ECS Task Role quyền cho App vs Execution Role kéo Image/ghi Log"]
+        K16b["ECR Immutable Tags, Image Scan, Lifecycle Policy"]
+      L17["Ch.17: Elastic Beanstalk"]
+        K17["AllAtOnce vs Rolling vs RollingAdditionalBatch vs Immutable vs Blue/Green"]
 ```
 
 ---
 
-## 5. Domain 3 (22%) — Testing, Container & CI/CD
-
-```mermaid
-flowchart LR
-    Dev["Code + Spec (Kiro / Amazon Q)"] --> Test["Unit & Integration Test (SAM CLI local / AI Test Gen)"]
-    Test --> Conn["GitHub / GitLab via AWS CodeConnections"]
-    Conn --> Pipe["AWS CodePipeline"]
-    Pipe --> Build["CodeBuild (buildspec.yml + Docker Build + ECR Scan)"]
-    Build --> ECR["Amazon ECR (Immutable Tags + Lifecycle)"]
-    ECR --> Deploy["CodeDeploy / ECS Fargate / EKS"]
-    Deploy --> Strat["Canary / Linear / Blue-Green (AppSpec.yml + Hooks)"]
-```
-
-### Từ khóa ăn điểm Domain 3
-- **CodeConnections** thay cho CodeCommit (đã ngừng nhận khách mới); **Amazon Q Developer** (`/review`) thay CodeGuru Reviewer.
-- **SAM (`template.yaml`)**: `sam build` -> `sam local invoke` (test local với Docker) -> `sam deploy`; hỗ trợ `AutoPublishAlias` + `DeploymentPreference: Canary10Percent5Minutes` / `Linear` / `AllAtOnce`.
-- **CodeDeploy**: `appspec.yml` (EC2/ECS/Lambda); `BeforeAllowTraffic` / `AfterAllowTraffic` hooks để chạy validation test trước khi chuyển 100% traffic.
-- **ECR**: Bật **Immutable Image Tags** (tránh ghi đè `latest`), **Enhanced Scanning (Inspector)** tìm CVE, **Lifecycle Policy** xóa image cũ.
-
----
-
-## 6. Domain 4 (22%) — Troubleshooting & Optimization
+## Nhóm 3 — Serverless Core, Messaging & Workflow (Chủ đề 6, 7, 8, 9, 10)
 
 ```mermaid
 mindmap
-  root((Domain 4: Troubleshoot & Optimize 22%))
-    Observability["Giám sát & Truy vết"]
-      CWLogs["CloudWatch Logs Insights: Filter, Parse JSON, Retention"]
-      CWMetrics["Custom Metric: PutMetricData hoặc EMF Embedded Metric"]
-      XRay["AWS X-Ray: Segment, Subsegment, Annotation Indexed vs Metadata"]
-      AppSignals["CloudWatch Application Signals & ADOT OpenTelemetry"]
-      QDebug["Amazon Q Developer: Phân tích lỗi log & gợi ý sửa code"]
-    Optimization["Tối ưu hiệu năng & chi phí"]
-      LambdaTune["Lambda: Tăng Memory -> tăng CPU; SnapStart Java/Python/.NET"]
-      ColdStart["Cold Start: Giảm package size, Provisioned Concurrency"]
-      DynamoTune["DynamoDB: Tránh Hot Key, DAX cho Read-heavy, BatchGet/Write"]
-      Cache["API Gateway Stage Cache vs CloudFront Edge Cache"]
-    CommonErrors["Lỗi kinh điển hay hỏi"]
-      Err4xx["403 Missing Auth Token / 429 Too Many Requests"]
-      Err5xx["502 Bad Gateway Lambda sai format / 504 Timeout > 29s API GW"]
-      CorsErr["CORS lỗi -> bật OPTIONS + Access-Control-Allow-Origin cả lỗi 4xx/5xx"]
+  root((Serverless Core & Messaging))
+    T6["Chủ đề 6: AWS Lambda Deep Dive (Ch.21)"]
+      K6a["Sync 6MB / Async 256KB / Max Timeout 15p / /tmp 10GB"]
+      K6b["Tăng Memory = tăng vCPU; DB Connection tạo ngoài Handler"]
+      K6c["Reserved Concurrency giới hạn vs Provisioned Concurrency chống Cold Start"]
+      K6d["SnapStart Java/Python/.NET; Layers; Alias Weighted Traffic Shifting"]
+    T7["Chủ đề 7: Amazon DynamoDB & DAX (Ch.22)"]
+      K7a["PK + SK; Item max 400KB; LSI tạo lúc đầu cùng PK vs GSI tạo sau bất kỳ PK"]
+      K7b["1 RCU = 4KB Strong / 8KB Eventual; 1 WCU = 1KB"]
+      K7c["Streams + Lambda Trigger; TTL xóa tự động miễn phí WCU"]
+      K7d["DAX microsecond Read Cache; Optimistic Locking với ConditionExpression"]
+    T8["Chủ đề 8: Amazon API Gateway (Ch.23)"]
+      K8a["HTTP API rẻ/nhanh vs REST API đầy đủ Cache, WAF, Usage Plan, VTL"]
+      K8b["Lambda Proxy Integration; Cognito vs Lambda Custom Authorizer"]
+      K8c["504 Timeout >29s; 429 Throttling; Bật CORS trả Access-Control-Allow-Origin"]
+    T9["Chủ đề 9: SQS, SNS, Kinesis & EventBridge"]
+      L19["Ch.19: SQS, SNS & Kinesis"]
+        K19a["SQS Standard vs FIFO MessageGroupId/Dedup; Visibility Timeout + DLQ"]
+        K19b["SNS Fan-out Pub/Sub + Filter Policy; Kinesis Shard 1MB/s in, 2MB/s out"]
+      L31["Ch.31: EventBridge Event Bus/Scheduler,SES, Rekognition"]
+    T10["Chủ đề 10: Step Functions & AppSync (Ch.28)"]
+      K10a["Step Functions Standard chạy tới 1 năm/Exactly-once vs Express 5p/High-rate"]
+      K10b["ASL States: Task, Choice, Parallel, Map, Wait; Retry & Catch"]
+      K10c["AppSync Managed GraphQL + Real-time Subscriptions thay Cognito Sync"]
 ```
 
 ---
 
-## 7. Bảng chuyển dịch DVA-C02 → DVA-C03 (Nhớ nhanh tránh bẫy)
+## Nhóm 4 — Chủ đề 11 [MỚI DVA-C03]: AI, AgentCore, Guardrails, Q & Kiro
 
-| Dịch vụ / Chủ đề cũ (DVA-C02) | Thay thế / Cập nhật mới trong DVA-C03 |
-|---|---|
-| **AWS CodeCommit** | Dùng **AWS CodeConnections** kết nối GitHub / GitLab / Bitbucket |
-| **AWS Cloud9** | Dùng **AWS CloudShell** hoặc IDE local + **Amazon Q Developer** / **Kiro** |
-| **Amazon CodeGuru Reviewer** | Dùng **Amazon Q Developer** (`/review`, security scan) & **Amazon Inspector** |
-| **Amazon Cognito Sync** | Dùng **AWS AppSync** |
-| **Tích hợp AI & Agent** *(mới)* | **Amazon Bedrock** (`Converse`, Streaming), **Bedrock AgentCore**, **Bedrock Guardrails** |
-| **Truy vết & Chẩn đoán** *(tăng +4%)* | **X-Ray**, **ADOT (OpenTelemetry)**, **CloudWatch Application Signals**, **Amazon Q** |
+```mermaid
+flowchart TD
+    T11["Chủ đề 11: Chương 35.0 – 35.5 (Cập nhật DVA-C03)"]
+    T11 --> C350["Ch.35.0: Tổng quan DVA-C02 -> DVA-C03"]
+    T11 --> C351["Ch.35.1: Amazon Bedrock & AgentCore"]
+    T11 --> C352["Ch.35.2: Amazon Q Developer & Kiro"]
+    T11 --> C353["Ch.35.3: Bảo mật AI - Task 2.3"]
+    T11 --> C354["Ch.35.4: Mở rộng Container, CI/CD, Observability"]
+    T11 --> C355["Ch.35.5: 30 câu luyện thi chuẩn DVA-C03"]
+
+    C350 --> K350["Domain 1: 30% | Domain 2: 26% | Domain 3: 22% | Domain 4: +4% -> 22%"]
+    C351 --> K351["Converse / ConverseStream API, Retry Throttling; AgentCore: Action Group Lambda + Session + Memory + MCP"]
+    C352 --> K352["Q Developer: /dev, /test, /review thay CodeGuru; Kiro: Spec-driven Dev + Steering + Hooks"]
+    C353 --> K353["Bedrock Guardrails 6 Policies: PII, Denied Topics, Prompt Injection; VPC PrivateLink; Human-in-the-loop"]
+    C354 --> K354["CodeConnections thay CodeCommit; ECR Immutable + Inspector; S3 Presigned URL Expiry Trap; App Signals + ADOT"]
+```
+
+---
+
+## Nhóm 5 — Domain 3 & Domain 4: IaC, CI/CD & Observability (Chủ đề 14, 15, 16)
+
+```mermaid
+mindmap
+  root((IaC, CI/CD & Monitoring))
+    T14["Chủ đề 14: IaC - CloudFormation, SAM & CDK"]
+      L18["Ch.18: CloudFormation"]
+        K18["Intrinsic Ref/GetAtt/Sub/ImportValue; Drift Detection; Rollback; StackSets"]
+      L25["Ch.25: AWS SAM"]
+        K25["Transform AWS::Serverless-2016-10-31; sam build / local invoke / deploy; Canary/Linear"]
+      L26["Ch.26: AWS CDK"]
+        K26["L1 CfnResource, L2 Curated, L3 Pattern; cdk synth -> CloudFormation"]
+    T15["Chủ đề 15: CI/CD Pipelines (Ch.24)"]
+      K15a["CodeConnections thay CodeCommit -> CodePipeline -> CodeBuild buildspec.yml"]
+      K15b["CodeDeploy appspec.yml: In-place vs Blue/Green; BeforeAllowTraffic Hooks"]
+      K15c["CodeArtifact lưu package npm/pip/maven nội bộ"]
+    T16["Chủ đề 16: Giám sát, Truy vết & Chiến thuật thi"]
+      L1["Ch.01 & Tuần 0: Diagnostic & Kế hoạch ôn 4 Domain"]
+      L20["Ch.20: CloudWatch, X-Ray & CloudTrail"]
+        K20a["CloudWatch Logs Insights, Metric Filter, EMF Embedded Metric Format"]
+        K20b["X-Ray: Segment, Subsegment, Annotation Indexed vs Metadata Not Indexed"]
+        K20c["CloudTrail Audit API Calls ai gọi gì lúc nào; ADOT & App Signals"]
+      L33["Ch.33: Exam Prep - Xin +30p ESL, đọc từ khóa loại trừ bẫy"]
+```
