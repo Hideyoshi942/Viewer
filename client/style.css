@@ -1331,12 +1331,19 @@ img.ProseMirror-separator {
 
 .mermaid-lightbox-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 10px 16px;
   background: var(--bg-soft);
   border-bottom: 1px solid var(--border);
+}
+
+.mermaid-lightbox-hint {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .mermaid-lightbox-bar button {
@@ -1368,6 +1375,22 @@ img.ProseMirror-separator {
   align-items: flex-start;
   justify-content: center;
   padding: 24px;
+  cursor: grab;
+  user-select: none;
+}
+
+.mermaid-lightbox-stage.is-panning {
+  cursor: grabbing;
+}
+
+.diagram-insert-select {
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 .mermaid-lightbox-canvas {

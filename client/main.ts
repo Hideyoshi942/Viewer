@@ -161,6 +161,40 @@ function renderBreadcrumb(path: string) {
   );
 }
 
+const DIAGRAM_TEMPLATES: Record<string, string> = {
+  mindmap: '```mermaid\nmindmap\n  root((Chủ đề chính))\n    Nhánh 1\n      Ý nhỏ A\n      Ý nhỏ B\n    Nhánh 2\n      Ý nhỏ C\n```',
+  flowchart: '```mermaid\nflowchart LR\n    A[Bắt đầu] --> B{Điều kiện?}\n    B -->|Có| C[Xử lý 1]\n    B -->|Không| D[Xử lý 2]\n```',
+  sequence: '```mermaid\nsequenceDiagram\n    participant U as User\n    participant S as Server\n    U->>S: Request\n    S-->>U: Response\n```',
+  pie: '```mermaid\npie showData\n    title Tỷ trọng\n    "Phần A" : 40\n    "Phần B" : 35\n    "Phần C" : 25\n```',
+};
+
+function diagramInsertControl(): HTMLSelectElement {
+  const select = document.createElement('select');
+  select.className = 'diagram-insert-select';
+  select.title = 'Chèn nhanh mẫu sơ đồ Mermaid';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '+ Diagram';
+  select.append(placeholder);
+  for (const [key, label] of [
+    ['mindmap', 'Mindmap (Sơ đồ tư duy)'],
+    ['flowchart', 'Flowchart (Lưu đồ)'],
+    ['sequence', 'Sequence (Tuần tự)'],
+    ['pie', 'Pie Chart (Biểu đồ tròn)'],
+  ]) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    select.append(opt);
+  }
+  select.addEventListener('change', () => {
+    const snippet = DIAGRAM_TEMPLATES[select.value];
+    if (snippet && editor?.insertText) editor.insertText(snippet);
+    select.value = '';
+  });
+  return select;
+}
+
 function renderActions() {
   const items: HTMLElement[] = [];
   if (current && ds.canWrite) {
@@ -172,7 +206,10 @@ function renderActions() {
         status,
         button(editMode === 'visual' ? 'Markdown' : 'Visual', () => void switchEditMode()),
         ...(editMode === 'source'
-          ? [button('Preview', () => layout.classList.toggle('show-preview'), { className: 'only-narrow' })]
+          ? [
+              diagramInsertControl(),
+              button('Preview', () => layout.classList.toggle('show-preview'), { className: 'only-narrow' }),
+            ]
           : []),
         button('Changes', showChanges, { disabled: !isDirty() }),
         button('Done', () => exitEdit()),

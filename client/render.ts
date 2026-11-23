@@ -68,7 +68,47 @@ function frontMatterBox(frontMatter: string): HTMLElement {
 
 let mermaidSeq = 0;
 
-function openMermaidLightbox(svgMarkup: string): void {
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadMermaidSvg(svgMarkup: string, index: number): void {
+  downloadBlob(new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' }), `diagram-${index}.svg`);
+}
+
+function downloadMermaidPng(svgEl: SVGSVGElement | null, svgMarkup: string, index: number): void {
+  const rect = svgEl?.getBoundingClientRect();
+  const width = Math.max(1, Math.round(svgEl?.viewBox?.baseVal?.width || rect?.width || 1200));
+  const height = Math.max(1, Math.round(svgEl?.viewBox?.baseVal?.height || rect?.height || 800));
+  const scale = 2;
+  const img = new Image();
+  const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((png) => {
+        if (png) downloadBlob(png, `diagram-${index}.png`);
+      }, 'image/png');
+    }
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = () => URL.revokeObjectURL(url);
+  img.src = url;
+}
+
+function openMermaidLightbox(svgMarkup: string, diagramIndex: number): void {
   document.querySelector('.mermaid-lightbox')?.remove();
 
   let scale = 1;
@@ -81,10 +121,14 @@ function openMermaidLightbox(svgMarkup: string): void {
   const toolbar = document.createElement('div');
   toolbar.className = 'mermaid-lightbox-bar';
 
+  const hint = document.createElement('span');
+  hint.className = 'mermaid-lightbox-hint';
+  hint.textContent = 'Kéo để di chuyển · Ctrl + cuộn để zoom';
+
   const zoomOutBtn = document.createElement('button');
   zoomOutBtn.type = 'button';
   zoomOutBtn.textContent = '−';
-  zoomOutBtn.title = 'Thu nhỏ';
+  zoomOutBtn.title = 'Thu nhỏ (-)';
 
   const zoomLabel = document.createElement('span');
   zoomLabel.className = 'mermaid-zoom-label';
@@ -93,19 +137,29 @@ function openMermaidLightbox(svgMarkup: string): void {
   const zoomInBtn = document.createElement('button');
   zoomInBtn.type = 'button';
   zoomInBtn.textContent = '+';
-  zoomInBtn.title = 'Phóng to';
+  zoomInBtn.title = 'Phóng to (+)';
 
   const resetBtn = document.createElement('button');
   resetBtn.type = 'button';
   resetBtn.textContent = '100%';
-  resetBtn.title = 'Đặt lại tỷ lệ';
+  resetBtn.title = 'Đặt lại tỷ lệ (0)';
+
+  const svgBtn = document.createElement('button');
+  svgBtn.type = 'button';
+  svgBtn.textContent = '⬇ SVG';
+  svgBtn.title = 'Tải ảnh vector SVG';
+
+  const pngBtn = document.createElement('button');
+  pngBtn.type = 'button';
+  pngBtn.textContent = '⬇ PNG';
+  pngBtn.title = 'Tải ảnh PNG độ nét cao';
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'mermaid-close-btn';
   closeBtn.textContent = '✕ Đóng';
 
-  toolbar.append(zoomOutBtn, zoomLabel, zoomInBtn, resetBtn, closeBtn);
+  toolbar.append(hint, zoomOutBtn, zoomLabel, zoomInBtn, resetBtn, svgBtn, pngBtn, closeBtn);
 
   const stage = document.createElement('div');
   stage.className = 'mermaid-lightbox-stage';
@@ -115,7 +169,7 @@ function openMermaidLightbox(svgMarkup: string): void {
   stage.append(canvas);
 
   const applyScale = (next: number) => {
-    scale = Math.min(3, Math.max(0.4, Math.round(next * 100) / 100));
+    scale = Math.min(3.5, Math.max(0.35, Math.round(next * 100) / 100));
     canvas.style.transform = `scale(${scale})`;
     zoomLabel.textContent = `${Math.round(scale * 100)}%`;
   };
@@ -123,6 +177,57 @@ function openMermaidLightbox(svgMarkup: string): void {
   zoomInBtn.addEventListener('click', () => applyScale(scale + 0.25));
   zoomOutBtn.addEventListener('click', () => applyScale(scale - 0.25));
   resetBtn.addEventListener('click', () => applyScale(1));
+  svgBtn.addEventListener('click', () => downloadMermaidSvg(svgMarkup, diagramIndex));
+  pngBtn.addEventListener('click', () => downloadMermaidPng(canvas.querySelector<SVGSVGElement>('svg'), svgMarkup, diagramIndex));
+
+  // Ctrl + wheel / trackpad pinch zoom inside lightbox
+  stage.addEventListener(
+    'wheel',
+    (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      applyScale(scale + (e.deltaY < 0 ? 0.15 : -0.15));
+    },
+    { passive: false },
+  );
+
+  // Drag-to-pan across the lightbox stage
+  let panning = false;
+  let moved = false;
+  let startX = 0;
+  let startY = 0;
+  let startScrollLeft = 0;
+  let startScrollTop = 0;
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    panning = true;
+    moved = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    startScrollLeft = stage.scrollLeft;
+    startScrollTop = stage.scrollTop;
+    stage.classList.add('is-panning');
+    stage.setPointerCapture(e.pointerId);
+  });
+
+  stage.addEventListener('pointermove', (e) => {
+    if (!panning) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    stage.scrollLeft = startScrollLeft - dx;
+    stage.scrollTop = startScrollTop - dy;
+  });
+
+  const endPan = (e: PointerEvent) => {
+    if (!panning) return;
+    panning = false;
+    stage.classList.remove('is-panning');
+    if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
+  };
+  stage.addEventListener('pointerup', endPan);
+  stage.addEventListener('pointercancel', endPan);
 
   const close = () => {
     window.removeEventListener('keydown', onKeyDown);
@@ -137,7 +242,7 @@ function openMermaidLightbox(svgMarkup: string): void {
 
   closeBtn.addEventListener('click', close);
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay || e.target === stage) close();
+    if (!moved && (e.target === overlay || e.target === stage)) close();
   });
   window.addEventListener('keydown', onKeyDown);
 
@@ -156,7 +261,8 @@ async function renderMermaid(el: HTMLElement) {
     const pre = code.parentElement!;
     if (!pre.isConnected) continue; // page re-rendered meanwhile
     try {
-      const { svg } = await mermaid.render(`mermaid-${++mermaidSeq}`, code.textContent ?? '');
+      const idx = ++mermaidSeq;
+      const { svg } = await mermaid.render(`mermaid-${idx}`, code.textContent ?? '');
       if (!pre.isConnected) continue;
       const wrap = document.createElement('div');
       wrap.className = 'mermaid-wrap';
@@ -165,8 +271,8 @@ async function renderMermaid(el: HTMLElement) {
       expandBtn.type = 'button';
       expandBtn.className = 'mermaid-expand-btn';
       expandBtn.textContent = '⤢ Phóng to';
-      expandBtn.title = 'Xem biểu đồ toàn màn hình (Zoom +/-)';
-      expandBtn.addEventListener('click', () => openMermaidLightbox(svg));
+      expandBtn.title = 'Xem biểu đồ toàn màn hình (Zoom +/- / Kéo / Tải SVG/PNG)';
+      expandBtn.addEventListener('click', () => openMermaidLightbox(svg, idx));
 
       const figure = document.createElement('div');
       figure.className = 'mermaid';

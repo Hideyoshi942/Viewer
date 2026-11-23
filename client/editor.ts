@@ -21,6 +21,8 @@ export interface ContentEditor {
   markSaved(savedText: string): void;
   focus(): void;
   destroy(): void;
+  /** Insert text at the current cursor (source editor only). */
+  insertText?(snippet: string): void;
   /** Visual editor only: false if loading the file already altered its text. */
   readonly lossless?: boolean;
 }
@@ -111,6 +113,16 @@ export class SourceEditor implements ContentEditor {
   }
 
   focus() {
+    this.view.focus();
+  }
+
+  insertText(snippet: string) {
+    const pos = this.view.state.selection.main.head;
+    const doc = this.view.state.doc;
+    const prefix = pos > 0 && doc.sliceString(pos - 1, pos) !== '\n' ? '\n\n' : '';
+    const suffix = pos === doc.length || doc.sliceString(pos, pos + 1) !== '\n' ? '\n' : '';
+    const text = prefix + snippet + suffix;
+    this.view.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length } });
     this.view.focus();
   }
 
