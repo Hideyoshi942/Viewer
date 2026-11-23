@@ -1276,10 +1276,107 @@ img.ProseMirror-separator {
 
 /* ---------- Mermaid diagrams ---------- */
 
+.markdown-body .mermaid-wrap {
+  position: relative;
+  margin: 0 0 1.25em;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+
 .markdown-body .mermaid {
-  margin: 0 0 1em;
+  margin: 0;
   overflow-x: auto;
   text-align: center;
+}
+
+.markdown-body .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-expand-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.mermaid-expand-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.mermaid-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.mermaid-lightbox-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.mermaid-lightbox-bar button {
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mermaid-lightbox-bar button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mermaid-zoom-label {
+  min-width: 48px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.mermaid-lightbox-stage {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+}
+
+.mermaid-lightbox-canvas {
+  transform-origin: top center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
 .markdown-body .mermaid-error {

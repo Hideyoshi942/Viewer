@@ -68,6 +68,83 @@ function frontMatterBox(frontMatter: string): HTMLElement {
 
 let mermaidSeq = 0;
 
+function openMermaidLightbox(svgMarkup: string): void {
+  document.querySelector('.mermaid-lightbox')?.remove();
+
+  let scale = 1;
+  const overlay = document.createElement('div');
+  overlay.className = 'mermaid-lightbox';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Diagram viewer');
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'mermaid-lightbox-bar';
+
+  const zoomOutBtn = document.createElement('button');
+  zoomOutBtn.type = 'button';
+  zoomOutBtn.textContent = '−';
+  zoomOutBtn.title = 'Thu nhỏ';
+
+  const zoomLabel = document.createElement('span');
+  zoomLabel.className = 'mermaid-zoom-label';
+  zoomLabel.textContent = '100%';
+
+  const zoomInBtn = document.createElement('button');
+  zoomInBtn.type = 'button';
+  zoomInBtn.textContent = '+';
+  zoomInBtn.title = 'Phóng to';
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.textContent = '100%';
+  resetBtn.title = 'Đặt lại tỷ lệ';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'mermaid-close-btn';
+  closeBtn.textContent = '✕ Đóng';
+
+  toolbar.append(zoomOutBtn, zoomLabel, zoomInBtn, resetBtn, closeBtn);
+
+  const stage = document.createElement('div');
+  stage.className = 'mermaid-lightbox-stage';
+  const canvas = document.createElement('div');
+  canvas.className = 'mermaid-lightbox-canvas';
+  canvas.innerHTML = svgMarkup;
+  stage.append(canvas);
+
+  const applyScale = (next: number) => {
+    scale = Math.min(3, Math.max(0.4, Math.round(next * 100) / 100));
+    canvas.style.transform = `scale(${scale})`;
+    zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+  };
+
+  zoomInBtn.addEventListener('click', () => applyScale(scale + 0.25));
+  zoomOutBtn.addEventListener('click', () => applyScale(scale - 0.25));
+  resetBtn.addEventListener('click', () => applyScale(1));
+
+  const close = () => {
+    window.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') close();
+    else if (e.key === '+' || e.key === '=') applyScale(scale + 0.25);
+    else if (e.key === '-') applyScale(scale - 0.25);
+    else if (e.key === '0') applyScale(1);
+  };
+
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target === stage) close();
+  });
+  window.addEventListener('keydown', onKeyDown);
+
+  overlay.append(toolbar, stage);
+  document.body.append(overlay);
+}
+
 /** ```mermaid blocks become diagrams. Mermaid is large, so it's only loaded when a page uses it. */
 async function renderMermaid(el: HTMLElement) {
   const blocks = [...el.querySelectorAll<HTMLElement>('pre > code.language-mermaid')];
@@ -81,10 +158,21 @@ async function renderMermaid(el: HTMLElement) {
     try {
       const { svg } = await mermaid.render(`mermaid-${++mermaidSeq}`, code.textContent ?? '');
       if (!pre.isConnected) continue;
+      const wrap = document.createElement('div');
+      wrap.className = 'mermaid-wrap';
+
+      const expandBtn = document.createElement('button');
+      expandBtn.type = 'button';
+      expandBtn.className = 'mermaid-expand-btn';
+      expandBtn.textContent = '⤢ Phóng to';
+      expandBtn.title = 'Xem biểu đồ toàn màn hình (Zoom +/-)';
+      expandBtn.addEventListener('click', () => openMermaidLightbox(svg));
+
       const figure = document.createElement('div');
       figure.className = 'mermaid';
       figure.innerHTML = svg; // produced by mermaid in strict mode (sanitised labels, no scripts)
-      pre.replaceWith(figure);
+      wrap.append(expandBtn, figure);
+      pre.replaceWith(wrap);
     } catch (err) {
       pre.classList.add('mermaid-error');
       pre.title = `Diagram error: ${(err as Error).message}`;
