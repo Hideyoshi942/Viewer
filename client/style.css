@@ -1434,6 +1434,33 @@ img.ProseMirror-separator {
   border-radius: 0 0 6px 6px;
 }
 
+/* ---------- Collapsible quiz / answer blocks ---------- */
+
+.markdown-body details:not(.front-matter) {
+  margin: 0.65em 0 1.25em;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+
+.markdown-body details:not(.front-matter) > summary {
+  padding: 8px 0;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+}
+
+.markdown-body details:not(.front-matter)[open] {
+  padding-bottom: 12px;
+}
+
+.markdown-body details:not(.front-matter)[open] > summary {
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ---------- Changes (diff) dialog ---------- */
 
 .dialog-wide {

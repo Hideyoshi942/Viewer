@@ -2,6 +2,12 @@
 
 This is the sample `docs/` folder that MD Viewer shows by default. Point the app at your own folder with `npm run dev -- D:\path\to\notes`.
 
+## Tài liệu ôn thi AWS
+
+- [Khóa học AWS DVA-C02 (Kiến thức & Bài tập — không Hands-On)](dva-c02/00-tong-quan-va-lo-trinh-dva-c02.md)
+- [Lộ trình 4 chặng & Giải thích bình dân AWS DVA-C03](dva-c03-beginner-guide.md)
+- [Sơ đồ tư duy AWS DVA-C03 (16 Topics & Luồng xử lý)](dva-c03-mindmap.md)
+
 ## What works
 
 - Nested folders in the sidebar → see [Getting started](guide/getting-started.md)
