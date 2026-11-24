@@ -1,6 +1,6 @@
 # Bộ Tài Liệu Học & Sơ Đồ Tư Duy Toàn Diện AWS DVA-C03 (16 Topics · 38 Lessons · Luồng Xử Lý & Bẫy Thi)
 
-> **Mới bắt đầu học?** Đọc trước [Lộ trình 4 chặng & Giải thích bình dân (ví dụ dễ hiểu)](dva-c03-beginner-guide.md) để nắm bản chất trước khi xem bản đồ chi tiết bên dưới.
+> **Mới bắt đầu học?** Đọc trước [Lộ trình 4 chặng & Giải thích bình dân (ví dụ dễ hiểu)](dva-c03-beginner-guide.md) · **Học chi tiết từng chương & làm 325 bài tập:** [Khóa học AWS DVA-C03 (37 Chương & 16 Bộ bài tập)](dva-c03/00-tong-quan-va-lo-trinh-dva-c03.md)
 > **Cấu trúc kỳ thi DVA-C03** *(áp dụng từ 01/12/2026)*: **65 câu hỏi** (50 câu tính điểm + 15 câu thử nghiệm) · **130 phút** (+30 phút ESL = 160 phút) · **Điểm đỗ 720/1000** · Không trừ điểm câu sai.
 > **Mẹo xem:** Bấm **⤢ Phóng to** ở góc trên bên phải mỗi sơ đồ để mở toàn màn hình, kéo để di chuyển, `Ctrl + cuộn` để zoom, hoặc tải ảnh `SVG`/`PNG`.
 

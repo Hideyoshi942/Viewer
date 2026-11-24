@@ -4,6 +4,7 @@ This is the sample `docs/` folder that MD Viewer shows by default. Point the app
 
 ## Tài liệu ôn thi AWS
 
+- [Khóa học AWS DVA-C03 Toàn diện (37 Chương Kiến thức, AI/Bedrock, Cheatsheets & 325 Bài tập — không Hands-On)](dva-c03/00-tong-quan-va-lo-trinh-dva-c03.md)
 - [Khóa học AWS DVA-C02 (Kiến thức & Bài tập — không Hands-On)](dva-c02/00-tong-quan-va-lo-trinh-dva-c02.md)
 - [Lộ trình 4 chặng & Giải thích bình dân AWS DVA-C03](dva-c03-beginner-guide.md)
 - [Sơ đồ tư duy AWS DVA-C03 (16 Topics & Luồng xử lý)](dva-c03-mindmap.md)

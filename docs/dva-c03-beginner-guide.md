@@ -1,6 +1,7 @@
 # Lộ Trình Học & Giải Thích Bình Dân AWS DVA-C03 (Cho Người Mới Bắt Đầu)
 
 > **File này dành cho ai?** Nếu bạn mở [Sơ đồ tư duy DVA-C03](dva-c03-mindmap.md) và thấy bị ngộp vì nhiều từ viết tắt (`PK/SK`, `RCU/WCU`, `STS AssumeRole`, `DAX`, `Guardrails`...), hãy đọc file này trước. Mọi khái niệm đều giải thích bằng **tình huống thực tế** và **ví dụ cụ thể**.
+> **Học chi tiết từng chương & làm 325 bài tập:** [Khóa học AWS DVA-C03 Toàn diện (37 Chương & 16 Bộ bài tập)](dva-c03/00-tong-quan-va-lo-trinh-dva-c03.md)
 
 ---
 
