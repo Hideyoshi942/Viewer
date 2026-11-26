@@ -1,0 +1,310 @@
+# Bài tập tình huống — VPC Reachability Analyzer, Network Access Analyzer & Network Manager
+
+> Kiểm tra đường đi gói tin không cần gửi traffic thật, xác minh tuân thủ cô lập mạng và giám sát toàn cầu qua AWS Network Manager & CloudWatch Network Monitor.
+> **Số câu hỏi:** 12 câu · **Mẹo:** Tự chọn đáp án trước rồi bấm **Xem đáp án, Dịch nghĩa & Giải thích chi tiết**.
+
+---
+
+### Câu 1 `hard`
+
+A security auditor needs to verify that no EC2 instances in any production VPC have an unintended network path to the internet, even across complex Transit Gateway route tables, VPC Peering, and Network Firewall appliances, without sending live probe packets. Which AWS tool should be used?
+
+- **A.** VPC Traffic Mirroring.
+- **B.** VPC Flow Logs with Athena queries.
+- **C.** AWS Network Access Analyzer.
+- **D.** Amazon CloudWatch Network Monitor.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một kiểm toán viên bảo mật cần xác minh rằng không có EC2 instance nào trong bất kỳ VPC production nào có đường mạng ngoài ý muốn ra internet, ngay cả khi đi qua các route table phức tạp của Transit Gateway, VPC Peering và các thiết bị Network Firewall, mà không cần gửi các gói tin dò tìm trực tiếp. Nên sử dụng công cụ AWS nào?
+
+**Đáp án đúng:** **C**
+
+Network Access Analyzer (khác với Reachability Analyzer vốn kiểm tra 1 cặp source-destination cụ thể) dùng để kiểm tra tuân thủ (compliance) và phát hiện các đường truy cập ngoài ý muốn trên quy mô toàn mạng.
+
+- **A:** Traffic Mirroring dùng để sao chép gói tin thực tế phục vụ phân tích sâu, không dùng để kiểm tra compliance toàn bộ topology.
+- **B:** VPC Flow Logs chỉ ghi nhận traffic thực tế đã phát sinh, không thể chứng minh toàn bộ đường đi tiềm năng (potential paths) chưa có traffic.
+- **C (Đúng):** Chính xác. Network Access Analyzer phân tích tĩnh (static analysis) toàn bộ cấu hình mạng (SG, NACL, Route Table, TGW, IGW) dựa trên Network Access Scope để phát hiện mọi đường truy cập không mong muốn.
+- **D:** CloudWatch Network Monitor đo độ trễ và mất gói (packet loss) liên tục bằng các probe thực tế giữa VPC và on-premises.
+
+</details>
+
+### Câu 2 `medium`
+
+An engineer is troubleshooting why an EC2 instance in Account A (VPC-A) cannot reach an RDS database in Account B (VPC-B) across a Transit Gateway. Both accounts belong to the same AWS Organization. Which tool provides a step-by-step hop-by-hop path analysis showing the exact Security Group, NACL, or Route Table blocking the traffic?
+
+- **A.** AWS Transit Gateway Route Analyzer in AWS Network Manager with cross-account flow inspection.
+- **B.** AWS Trusted Advisor Network Security Group and NACL Reachability Checks across AWS Organizations.
+- **C.** VPC Reachability Analyzer with Cross-Account Insights enabled via AWS Organizations.
+- **D.** Amazon Inspector Network Reachability rules scanning VPC-A and VPC-B across the Transit Gateway.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một kỹ sư đang xử lý sự cố tại sao một EC2 instance trong Tài khoản A (VPC-A) không thể kết nối đến cơ sở dữ liệu RDS trong Tài khoản B (VPC-B) qua Transit Gateway. Cả hai tài khoản đều thuộc cùng một AWS Organization. Công cụ nào cung cấp phân tích đường đi từng bước (hop-by-hop) chỉ ra chính xác Security Group, NACL hoặc Route Table nào đang chặn lưu lượng?
+
+**Đáp án đúng:** **C**
+
+VPC Reachability Analyzer (có hỗ trợ cross-account trong AWS Organizations) là công cụ nhanh nhất để tìm chính xác thành phần nào (SG, NACL, Route Table, TGW) đang chặn kết nối giữa một source và destination cụ thể.
+
+- **A:** TGW Route Analyzer kiểm tra bảng định tuyến của Transit Gateway nhưng không kiểm tra sâu tới Security Group hay NACL của RDS/EC2.
+- **B:** Trusted Advisor chỉ đưa ra khuyến nghị tổng quan, không chẩn đoán đường đi mạng giữa 2 endpoint cụ thể.
+- **C (Đúng):** Chính xác. VPC Reachability Analyzer hỗ trợ phân tích đường đi từng bước (hop-by-hop) xuyên tài khoản trong AWS Organizations và chỉ rõ chính xác ENI, SG, NACL hoặc Route Table nào đang chặn kết nối.
+- **D:** Amazon Inspector quét các cổng đang mở ra ngoài (exposure), không dùng để debug đường đi bị chặn giữa EC2 và RDS.
+
+</details>
+
+### Câu 3 `hard`
+
+A hybrid application experiences intermittent packet loss and latency spikes between an AWS VPC and an on-premises data center connected via Direct Connect. The network operations team wants continuous synthetic monitoring of round-trip time (RTT) and packet loss from AWS to the on-premises subnet, with automated CloudWatch Alarms. Which TWO steps should they take?
+
+*(Chọn 2 đáp án)*
+
+- **A.** Enable Enhanced Monitoring and custom RTT metrics directly on the Direct Connect Virtual Interface.
+- **B.** Use VPC Flow Logs with custom fields to measure exact millisecond round-trip time (RTT) and packet loss per TCP flow between VPCs and on-premises.
+- **C.** Configure CloudWatch Alarms on the RoundTripTime and PacketLoss metrics generated by the monitor.
+- **D.** Deploy VPC Traffic Mirroring on the Direct Connect Gateway to capture and alarm on RTT spikes.
+- **E.** Create a monitor in Amazon CloudWatch Network Monitor specifying the VPC subnet as the source and the on-premises IP address as the destination.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một ứng dụng lai (hybrid) gặp tình trạng mất gói ngắt quãng và tăng vọt độ trễ giữa một AWS VPC và một trung tâm dữ liệu tại chỗ kết nối qua Direct Connect. Đội ngũ vận hành mạng muốn giám sát tổng hợp liên tục thời gian khứ hồi (RTT) và tỷ lệ mất gói từ AWS đến subnet tại chỗ, kèm cảnh báo CloudWatch Alarms tự động. Họ nên thực hiện HAI bước nào?
+
+**Đáp án đúng:** **C, E**
+
+Amazon CloudWatch Network Monitor (trước đây thuộc hệ sinh thái Network Manager) là dịch vụ chuyên dụng để giám sát liên tục hiệu năng (RTT, Packet Loss) của kết nối hybrid giữa AWS và on-premises.
+
+- **A:** Direct Connect không có tính năng tên là Enhanced Monitoring để đo RTT/PacketLoss tới IP đích cụ thể.
+- **B:** VPC Flow Logs chỉ ghi nhận start/end timestamp theo giây và số byte/packet, không đo được RTT hay packet loss chính xác.
+- **C (Đúng):** Chính xác. CloudWatch Network Monitor xuất trực tiếp metric RoundTripTime và PacketLoss lên CloudWatch để đặt cảnh báo.
+- **D:** Direct Connect Gateway không hỗ trợ VPC Traffic Mirroring.
+- **E (Đúng):** Chính xác. CloudWatch Network Monitor thực hiện đo đạc chủ động (synthetic probing) liên tục giữa VPC subnet và on-premises IP qua Direct Connect/VPN để xuất chỉ số RTT và Packet Loss.
+
+</details>
+
+### Câu 4 `hard`
+
+An engineer is troubleshooting intermittent connectivity between an EC2 instance in VPC-A (10.1.1.10) and a database in VPC-B (10.2.2.20), which are connected through a Transit Gateway and inspected by an AWS Network Firewall in an inspection VPC. The engineer wants to trace the exact hop-by-hop path and identify which Security Group, NACL, Route Table, or Transit Gateway rule is dropping the packet without sending live test traffic. Which tool should the engineer use?
+
+- **A.** VPC Flow Logs with default fields enabled on the Transit Gateway.
+- **B.** Amazon VPC Traffic Mirroring on the database ENI.
+- **C.** AWS Network Access Analyzer with a custom Network Access Scope.
+- **D.** VPC Reachability Analyzer with the source set to the EC2 instance ENI and the destination set to the database ENI.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một kỹ sư đang xử lý sự cố kết nối ngắt quãng giữa một EC2 instance trong VPC-A (10.1.1.10) và một cơ sở dữ liệu trong VPC-B (10.2.2.20), được kết nối qua Transit Gateway và được kiểm tra bởi AWS Network Firewall trong một inspection VPC. Kỹ sư muốn truy vết chính xác đường đi từng bước (hop-by-hop) và xác định Security Group, NACL, Route Table hay quy tắc Transit Gateway nào đang loại bỏ gói tin mà không cần gửi lưu lượng thử nghiệm trực tiếp. Kỹ sư nên sử dụng công cụ nào?
+
+**Đáp án đúng:** **D**
+
+VPC Reachability Analyzer là công cụ phân tích cấu hình tĩnh (không phát sinh traffic) giúp xác minh khả năng kết nối giữa source và destination (hỗ trợ cả đường đi qua Transit Gateway và Network Firewall) và chỉ ra chính xác thành phần gây lỗi.
+
+- **A:** VPC Flow Logs ghi nhận lưu lượng thực tế (ACCEPT/REJECT), không phân tích tĩnh hop-by-hop qua route table hay NACL khi không có traffic.
+- **B:** Traffic Mirroring chỉ sao chép gói tin thực tế đã đến được ENI đích; nếu gói tin bị chặn dọc đường bởi NACL/Route Table thì Traffic Mirroring không bắt được và không chỉ ra hop bị chặn.
+- **C:** Network Access Analyzer dùng để kiểm toán tuân thủ (compliance) xem có đường truy cập trái phép nào tồn tại không, không phải công cụ debug kết nối point-to-point giữa hai ENI cụ thể.
+- **D (Đúng):** Chính xác. VPC Reachability Analyzer thực hiện phân tích tĩnh (static configuration analysis) mà không cần gửi gói tin thực tế, hỗ trợ phân tích xuyên qua Transit Gateway, VPC Peering, và các thành phần kiểm tra trung gian để chỉ ra chính xác hop bị chặn.
+
+</details>
+
+### Câu 5 `hard`
+
+A security auditor requires proof that no EC2 instances in any production VPC have an unintended network path from an Internet Gateway, and that all traffic to an isolated PCI-DSS subnet must pass through a centralized Gateway Load Balancer endpoint. Which AWS service continuously evaluates network configurations to identify unintended access paths across the VPCs?
+
+- **A.** Amazon GuardDuty
+- **B.** Amazon VPC Reachability Analyzer
+- **C.** AWS Transit Gateway Network Manager
+- **D.** AWS Network Access Analyzer
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một kiểm toán viên bảo mật yêu cầu bằng chứng rằng không có EC2 instance nào trong bất kỳ VPC production nào có đường mạng ngoài ý muốn từ Internet Gateway, và mọi lưu lượng đến một subnet PCI-DSS cô lập phải đi qua một Gateway Load Balancer endpoint tập trung. Dịch vụ AWS nào liên tục đánh giá cấu hình mạng để phát hiện các đường truy cập ngoài ý muốn trên các VPC?
+
+**Đáp án đúng:** **D**
+
+AWS Network Access Analyzer được thiết kế chuyên biệt cho bài toán kiểm toán bảo mật và tuân thủ (Network Security Compliance), cho phép định nghĩa các điểm nguồn/đích bị cấm hoặc bắt buộc đi qua middlebox (như GWLB).
+
+- **A:** GuardDuty là hệ thống phát hiện mối đe dọa dựa trên log (CloudTrail, VPC Flow Logs, DNS logs), không phân tích cấu hình định tuyến/NACL tĩnh để chứng minh tuân thủ.
+- **B:** Reachability Analyzer kiểm tra một cặp nguồn-đích cụ thể, không phải công cụ kiểm toán toàn diện theo mẫu (scope) để tìm mọi đường truy cập trái phép trên toàn VPC.
+- **C:** Network Manager giúp trực quan hóa topology và theo dõi metrics của TGW/Cloud WAN, không kiểm toán đường truy cập vi phạm chính sách bên trong VPC.
+- **D (Đúng):** Chính xác. AWS Network Access Analyzer sử dụng các Network Access Scopes (có sẵn hoặc tùy chỉnh) để phân tích toàn bộ cấu hình mạng và phát hiện bất kỳ đường đi ngoài ý muốn nào (ví dụ từ IGW vào instance hoặc bỏ qua GWLB endpoint).
+
+</details>
+
+### Câu 6 `hard`
+
+A hybrid enterprise experiences periodic latency spikes and packet loss between its on-premises data center in Chicago and its VPCs in us-east-1 over AWS Direct Connect and Site-to-Site VPN. The network team wants near real-time visibility into round-trip time (RTT) and packet loss specifically for these hybrid paths, with automated CloudWatch alarms when RTT exceeds 40 ms. Which AWS service should the team deploy?
+
+- **A.** Amazon CloudWatch Network Monitor
+- **B.** VPC Flow Logs
+- **C.** AWS CloudTrail Insights
+- **D.** Amazon Route 53 Application Recovery Controller
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một doanh nghiệp lai gặp tình trạng tăng vọt độ trễ và mất gói định kỳ giữa trung tâm dữ liệu tại chỗ ở Chicago và các VPC tại us-east-1 qua AWS Direct Connect và Site-to-Site VPN. Đội ngũ mạng muốn có khả năng quan sát gần thời gian thực về thời gian khứ hồi (RTT) và tỷ lệ mất gói dành riêng cho các đường dẫn lai này, kèm cảnh báo CloudWatch tự động khi RTT vượt quá 40 ms. Đội ngũ nên triển khai dịch vụ AWS nào?
+
+**Đáp án đúng:** **A**
+
+Amazon CloudWatch Network Monitor là dịch vụ chuyên dụng để giám sát hiệu năng (RTT và Packet Loss) của các kết nối mạng hybrid giữa VPC trên AWS và các địa chỉ IP on-premises.
+
+- **A (Đúng):** Chính xác. Amazon CloudWatch Network Monitor liên tục đo đạc và cung cấp các chỉ số RTT (Round-Trip Time) và Packet Loss theo thời gian thực cho các đường kết nối hybrid giữa AWS VPC và mạng on-premises (qua Direct Connect hoặc VPN).
+- **B:** VPC Flow Logs chỉ ghi nhận số lượng packet/byte và ACCEPT/REJECT, không đo được RTT hay tỷ lệ mất gói (packet loss) trên đường truyền hybrid.
+- **C:** CloudTrail Insights phân tích bất thường trong API calls ở control plane, không đo RTT hay packet loss của mạng.
+- **D:** Route 53 ARC dùng để quản lý sẵn sàng và chuyển đổi vùng (failover), không phải công cụ đo lường RTT/packet loss liên tục.
+
+</details>
+
+### Câu 7 `medium`
+
+A network administrator manages a multi-Region AWS Transit Gateway topology and wants to monitor BGP session status on Direct Connect, VPN tunnel up/down events, and receive automated notifications whenever a Transit Gateway attachment state changes. Which TWO AWS services or features should the administrator configure? (Choose TWO.)
+
+*(Chọn 2 đáp án)*
+
+- **A.** Use AWS Trusted Advisor to stream real-time Site-to-Site VPN tunnel state and Direct Connect BGP metrics.
+- **B.** Enable VPC Traffic Mirroring on the Transit Gateway attachment ENIs to stream BGP and tunnel state notifications.
+- **C.** Register all Transit Gateways in AWS Network Manager (Transit Gateway Network Manager) to visualize topology and view real-time telemetry and events.
+- **D.** Configure AWS Config rules to poll Direct Connect BGP routing tables and VPN tunnel status every 5 seconds.
+- **E.** Create Amazon EventBridge rules matching AWS Direct Connect, Site-to-Site VPN, and Transit Gateway state-change events routed to an Amazon SNS topic.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một quản trị viên mạng quản lý cấu trúc liên kết AWS Transit Gateway đa Region và muốn giám sát trạng thái phiên BGP trên Direct Connect, sự kiện bật/tắt đường hầm VPN và nhận thông báo tự động bất cứ khi nào trạng thái attachment của Transit Gateway thay đổi. Quản trị viên nên cấu hình HAI dịch vụ hoặc tính năng AWS nào? (Chọn HAI đáp án.)
+
+**Đáp án đúng:** **C, E**
+
+AWS Network Manager kết hợp với Amazon EventBridge + SNS là bộ giải pháp chuẩn để trực quan hóa topology toàn cầu và tự động hóa cảnh báo cho mọi sự cố đứt gãy VPN, Direct Connect hay thay đổi trạng thái TGW attachment.
+
+- **A:** Trusted Advisor thực hiện kiểm tra định kỳ các best practices, không phải dịch vụ giám sát telemetry hay cảnh báo real-time cho VPN tunnel.
+- **B:** Traffic Mirroring chỉ hỗ trợ trên ENI của Nitro-based EC2 instances, không hỗ trợ gắn trực tiếp lên Transit Gateway attachment ENIs.
+- **C (Đúng):** Chính xác. AWS Network Manager cung cấp bản đồ topology toàn cầu, giám sát trạng thái Direct Connect, VPN tunnels, và theo dõi các sự kiện thay đổi trạng thái của Transit Gateway attachments.
+- **D:** AWS Config không có khả năng poll bảng định tuyến BGP mỗi 5 giây.
+- **E (Đúng):** Chính xác. EventBridge bắt các sự kiện thay đổi trạng thái từ Network Manager / Direct Connect / EC2 Transit Gateway theo thời gian thực để gửi cảnh báo qua SNS.
+
+</details>
+
+### Câu 8 `hard`
+
+A company has a multi-Region AWS Cloud WAN core network. After a recent policy update, applications in eu-west-1 can no longer reach a database in us-east-1, even though both VPCs are attached to the `prod` segment. The network engineer wants to validate the end-to-end network path across the Cloud WAN core network and identify if a core network policy route or a VPC security group is blocking the traffic. Which tool should the engineer use?
+
+- **A.** AWS Trusted Advisor Security Group and Cloud WAN routing validation checks.
+- **B.** Amazon Route 53 Health Checks monitoring the Cloud WAN core network policy.
+- **C.** AWS Direct Connect SiteLink optical path diagnostics in AWS Network Manager.
+- **D.** AWS Network Manager Route Analyzer (or VPC Reachability Analyzer across Regions with Cloud WAN).
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một công ty có một mạng lõi AWS Cloud WAN đa Region. Sau một bản cập nhật policy gần đây, các ứng dụng tại eu-west-1 không thể kết nối đến cơ sở dữ liệu tại us-east-1, mặc dù cả hai VPC đều được gắn vào segment `prod`. Kỹ sư mạng muốn xác thực đường đi mạng đầu-cuối xuyên qua mạng lõi Cloud WAN và xác định xem một tuyến trong core network policy hay một VPC security group đang chặn lưu lượng. Kỹ sư nên sử dụng công cụ nào?
+
+**Đáp án đúng:** **D**
+
+Network Manager Route Analyzer (dành cho TGW/Cloud WAN routing) và VPC Reachability Analyzer (hỗ trợ phân tích xuyên suốt từ ENI qua Cloud WAN tới ENI ở Region khác) giúp chẩn đoán chính xác lỗi cấu hình định tuyến hoặc Security Group/NACL.
+
+- **A:** Trusted Advisor chỉ cảnh báo các port mở rộng (như 0.0.0.0/0), không phân tích khả năng kết nối giữa hai VPC qua Cloud WAN.
+- **B:** Route 53 Health Check chỉ kiểm tra tính khả dụng của endpoint công cộng hoặc CloudWatch alarm, không phân tích đường định tuyến nội bộ Cloud WAN.
+- **C:** SiteLink là tính năng của Direct Connect, không liên quan đến kết nối VPC-to-VPC qua Cloud WAN.
+- **D (Đúng):** Chính xác. VPC Reachability Analyzer (hỗ trợ cross-Region với Transit Gateway và Cloud WAN) hoặc Network Manager Route Analyzer phân tích tĩnh toàn bộ đường đi từ ENI nguồn qua Cloud WAN core network tới ENI đích để chỉ rõ rule hoặc policy nào đang chặn.
+
+</details>
+
+### Câu 9 `hard`
+
+An enterprise monitors its AWS Direct Connect connections in CloudWatch. The operations team observes that `ConnectionLightLevelRx` has dropped below the recommended optical threshold, and `ConnectionErrorCount` is steadily increasing on one of the 10 Gbps dedicated connections, even though the BGP session is still `UP`. What does this indicate and what action should the team take?
+
+- **A.** Physical Layer 1 optical degradation (dirty/damaged fiber or failing SFP) at the DX location; open an AWS Support case with the LOA-CFA.
+- **B.** MACsec encryption is consuming excessive CPU on the AWS Direct Connect router and dropping optical light levels.
+- **C.** The customer router is advertising more than 100 BGP prefixes over a Private VIF, causing optical signal degradation.
+- **D.** Bidirectional Forwarding Detection (BFD) timers are mismatched between the customer edge router and AWS Direct Connect.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một doanh nghiệp giám sát các kết nối AWS Direct Connect của mình trong CloudWatch. Đội ngũ vận hành quan sát thấy `ConnectionLightLevelRx` đã giảm xuống dưới ngưỡng quang học khuyến nghị, và `ConnectionErrorCount` đang tăng đều trên một trong các kết nối dedicated 10 Gbps, mặc dù phiên BGP vẫn ở trạng thái `UP`. Điều này cho thấy điều gì và đội ngũ nên thực hiện hành động nào?
+
+**Đáp án đúng:** **A**
+
+Giám sát Layer 1 trên Direct Connect thông qua CloudWatch metrics `ConnectionLightLevelTx`, `ConnectionLightLevelRx`, `ConnectionState` và `ConnectionErrorCount` giúp phát hiện sớm lỗi vật lý (suy hao quang, đứt ngầm, lỗi SFP) trước khi đường truyền mất kết nối hoàn toàn.
+
+- **A (Đúng):** Chính xác. `ConnectionLightLevelRx` (hoặc Tx) đo cường độ tín hiệu quang học (dBm) ở Layer 1, và `ConnectionErrorCount` đếm lỗi CRC/MAC ở tầng vật lý. Khi các chỉ số này xấu đi dù BGP vẫn UP, nguyên nhân là suy hao cáp quang hoặc lỗi transceiver, cần phối hợp colocation/AWS Support xử lý trước khi link sập.
+- **B:** MACsec chạy ở tốc độ phần cứng (wire-speed) và không làm giảm cường độ ánh sáng quang học `ConnectionLightLevelRx`.
+- **C:** Vượt quá giới hạn BGP prefix sẽ làm BGP session chuyển sang trạng thái DOWN/Idle, không làm suy hao công suất quang học `ConnectionLightLevelRx`.
+- **D:** Lỗi BFD timer sẽ làm phiên BGP bị tear down liên tục, không ảnh hưởng đến chỉ số quang học Layer 1.
+
+</details>
+
+### Câu 10 `hard`
+
+A hybrid application running on EC2 instances in a VPC experiences occasional 5-second stalls when making DNS queries to an on-premises Active Directory domain (`corp.local`) through a Route 53 Resolver Outbound Endpoint. The operations team wants to identify whether the latency is caused by DNS query throttling at the VPC Resolver limit, slow responses from the on-premises DNS servers, or dropped UDP packets. Which TWO logging and monitoring mechanisms should the team enable? (Choose TWO.)
+
+*(Chọn 2 đáp án)*
+
+- **A.** Enable Route 53 Resolver Query Logging on VPCs to log query timestamps, domain names, response codes, and target resolver IPs.
+- **B.** Enable Route 53 Public Hosted Zone query logging for `corp.local`.
+- **C.** Monitor `OutboundQueryAggregateCount` and `QueryVolume` CloudWatch metrics for Outbound Endpoint ENIs against the 10,000 QPS limit.
+- **D.** Run VPC Reachability Analyzer continuously to measure real-time DNS query latency in milliseconds.
+- **E.** Enable Amazon CloudFront Standard Access Logs on the Route 53 Resolver Outbound Endpoint ENIs.
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một ứng dụng lai chạy trên các EC2 instance trong VPC gặp tình trạng khựng lại 5 giây thỉnh thoảng khi thực hiện truy vấn DNS đến tên miền Active Directory tại chỗ (`corp.local`) thông qua Route 53 Resolver Outbound Endpoint. Đội ngũ vận hành muốn xác định xem độ trễ là do điều tiết truy vấn DNS ở giới hạn VPC Resolver, phản hồi chậm từ máy chủ DNS tại chỗ hay các gói UDP bị loại bỏ. Đội ngũ nên bật HAI cơ chế ghi nhật ký và giám sát nào? (Chọn HAI đáp án.)
+
+**Đáp án đúng:** **A, C**
+
+Để chẩn đoán sự cố hiệu năng DNS Hybrid trên Route 53 Resolver: (1) bật Route 53 Resolver Query Logging để kiểm tra response code/lỗi, và (2) theo dõi CloudWatch metrics của Resolver Endpoint (lưu ý giới hạn 10,000 QPS/ENI của Endpoint và 1,024 PPS/ENI của EC2 tới `.2`).
+
+- **A (Đúng):** Chính xác. Route 53 Resolver Query Logging ghi nhận mọi truy vấn DNS đi qua VPC Resolver (bao gồm truy vấn forward qua Outbound Endpoint) cùng mã phản hồi (NOERROR, SERVFAIL, NXDOMAIN), giúp xác định xem on-premises DNS có trả lỗi hay timeout không.
+- **B:** `corp.local` là domain nội bộ on-premises được forward qua Outbound Endpoint, không phải Public Hosted Zone.
+- **C (Đúng):** Chính xác. Mỗi ENI của Route 53 Resolver Endpoint hỗ trợ tối đa 10,000 QPS (và mỗi EC2 ENI giới hạn 1,024 packets/s tới AmazonProvidedDNS). Theo dõi CloudWatch metrics của Resolver Endpoint giúp phát hiện tình trạng nghẽn/throttling.
+- **D:** Reachability Analyzer chỉ phân tích cấu hình tĩnh (có kết nối được hay không), không đo được độ trễ thực tế hay throttling của truy vấn DNS.
+- **E:** CloudFront logs chỉ dành cho CloudFront distribution, không gắn được vào Route 53 Resolver.
+
+</details>
+
+### Câu 11 `hard`
+
+A compliance auditor requires cryptographic-grade proof across 40 AWS accounts that NO EC2 instance in any Production VPC has a possible network path to or from the Internet Gateway that bypasses the centralized AWS Network Firewall in the Inspection VPC. Which AWS tool is purpose-built to validate this network-wide compliance requirement?
+
+- **A.** VPC Flow Logs with Amazon Athena
+- **B.** VPC Reachability Analyzer
+- **C.** VPC Network Access Analyzer
+- **D.** Amazon CloudWatch Network Monitor
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một kiểm toán viên tuân thủ yêu cầu bằng chứng ở mức độ mật mã học trên 40 tài khoản AWS rằng KHÔNG có EC2 instance nào trong bất kỳ Production VPC nào có đường mạng khả dĩ đi đến hoặc đi từ Internet Gateway mà bỏ qua AWS Network Firewall tập trung trong Inspection VPC. Công cụ AWS nào được thiết kế chuyên biệt để xác thực yêu cầu tuân thủ trên toàn mạng này?
+
+**Đáp án đúng:** **C**
+
+Phân biệt rõ trong ANS-C01: Reachability Analyzer dùng để debug kết nối điểm-tới-điểm (A -> B); Network Access Analyzer dùng để chứng minh tuân thủ (Compliance Scope) trên toàn mạng.
+
+- **A:** VPC Flow Logs chỉ ghi lại lưu lượng ĐÃ xảy ra trên thực tế, không thể chứng minh rằng không tồn tại lỗ hổng cấu hình đường đi tiềm ẩn.
+- **B:** VPC Reachability Analyzer chỉ kiểm tra đường đi điểm-tới-điểm giữa 1 Source và 1 Destination cụ thể, không tối ưu để kiểm toán tuân thủ toàn mạng (network-wide invariant).
+- **C (Đúng):** VPC Network Access Analyzer được thiết kế chuyên biệt để định nghĩa Network Access Scope và xác minh tuân thủ kiến trúc trên toàn mạng (ví dụ: đảm bảo không có đường đi nào tới Internet mà bỏ qua Network Firewall).
+- **D:** CloudWatch Network Monitor dùng để đo RTT và Packet Loss của kết nối Hybrid (DX/VPN), không phải công cụ kiểm toán compliance đường đi VPC.
+
+</details>
+
+### Câu 12 `medium`
+
+An operations team needs continuous, proactive synthetic monitoring of Round-Trip Time (RTT) and packet loss between their AWS VPCs and on-premises data center servers traversing AWS Direct Connect and Site-to-Site VPN links, with automatic CloudWatch Alarms when latency exceeds 25 ms. Which AWS service provides this capability without deploying custom EC2 probe agents?
+
+- **A.** AWS Direct Connect SiteLink
+- **B.** Amazon CloudWatch Network Monitor
+- **C.** Amazon CloudWatch Internet Monitor
+- **D.** VPC Reachability Analyzer
+
+<details><summary>Xem đáp án, Dịch nghĩa & Giải thích chi tiết</summary>
+
+> **Ý nghĩa câu hỏi:** Một đội ngũ vận hành cần giám sát tổng hợp (synthetic monitoring) liên tục và chủ động đối với thời gian khứ hồi (RTT) và tỷ lệ mất gói giữa các AWS VPC và các máy chủ trung tâm dữ liệu tại chỗ đi qua liên kết AWS Direct Connect và Site-to-Site VPN, kèm cảnh báo CloudWatch Alarms tự động khi độ trễ vượt quá 25 ms. Dịch vụ AWS nào cung cấp khả năng này mà không cần triển khai các EC2 probe agent tùy chỉnh?
+
+**Đáp án đúng:** **B**
+
+Amazon CloudWatch Network Monitor là dịch vụ managed chuyên dụng để chủ động đo RTT và Packet Loss giữa VPC và On-Premises qua Direct Connect / Site-to-Site VPN mà không cần tự vận hành EC2 probe.
+
+- **A:** Direct Connect SiteLink dùng để kết nối trực tiếp giữa các chi nhánh On-Premises qua AWS backbone, không phải công cụ giám sát RTT/Packet Loss.
+- **B (Đúng):** Amazon CloudWatch Network Monitor gửi các synthetic probes (ICMP/TCP) được AWS quản lý hoàn toàn từ VPC qua Direct Connect hoặc Site-to-Site VPN về On-Premises để đo RTT và Packet Loss theo thời gian thực và tích hợp CloudWatch Alarms.
+- **C:** CloudWatch Internet Monitor chỉ giám sát đường truyền Internet công cộng giữa người dùng cuối và AWS, không đo lường đường truyền Hybrid riêng (Direct Connect / Site-to-Site VPN).
+- **D:** Reachability Analyzer là công cụ phân tích cấu hình tĩnh, không gửi gói tin thật và không đo được RTT hay Packet Loss.
+
+</details>
+
+---
+
+[Mục lục ANS-C01](../00-tong-quan-va-lo-trinh-ans-c01.md)
