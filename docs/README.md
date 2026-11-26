@@ -9,6 +9,11 @@ This is the sample `docs/` folder that MD Viewer shows by default. Point the app
 - [Lộ trình 4 chặng & Giải thích bình dân AWS DVA-C03](dva-c03-beginner-guide.md)
 - [Sơ đồ tư duy AWS DVA-C03 (16 Topics & Luồng xử lý)](dva-c03-mindmap.md)
 
+## Kiến thức Hệ thống & Thuật toán
+
+- [X Algorithm (For You Feed — May 2026): Tổng quan & Lộ trình học](x-algorithm/00-tong-quan-va-lo-trinh.md)
+- [X Algorithm: Mindmap, Cheatsheet & 16 Câu hỏi ôn tập](x-algorithm/07-mindmap-cheatsheet-va-cau-hoi-on-tap.md)
+
 ## What works
 
 - Nested folders in the sidebar → see [Getting started](guide/getting-started.md)
