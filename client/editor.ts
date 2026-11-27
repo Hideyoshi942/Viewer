@@ -1,5 +1,6 @@
-import { markdown } from '@codemirror/lang-markdown';
+import type { Extension } from '@codemirror/state';
 import { basicSetup, EditorView } from 'codemirror';
+import type { FileFormat } from '../shared/formats';
 import { isImageFile } from './images';
 
 export type EditorOptions = {
@@ -7,7 +8,52 @@ export type EditorOptions = {
   /** Upload images and return markdown-ready paths relative to the file being edited. */
   uploadImages: (files: File[]) => Promise<{ src: string; alt: string }[]>;
   onError: (err: Error) => void;
+  cmLang?: FileFormat['cmLang'];
+  allowImageUpload?: boolean;
 };
+
+async function loadLanguageExtension(cmLang?: FileFormat['cmLang']): Promise<Extension> {
+  switch (cmLang) {
+    case 'markdown': {
+      const { markdown } = await import('@codemirror/lang-markdown');
+      return markdown();
+    }
+    case 'javascript': {
+      const { javascript } = await import('@codemirror/lang-javascript');
+      return javascript({ typescript: true, jsx: true });
+    }
+    case 'json': {
+      const { json } = await import('@codemirror/lang-json');
+      return json();
+    }
+    case 'html': {
+      const { html } = await import('@codemirror/lang-html');
+      return html();
+    }
+    case 'css': {
+      const { css } = await import('@codemirror/lang-css');
+      return css();
+    }
+    case 'xml': {
+      const { xml } = await import('@codemirror/lang-xml');
+      return xml();
+    }
+    case 'yaml': {
+      const { yaml } = await import('@codemirror/lang-yaml');
+      return yaml();
+    }
+    case 'python': {
+      const { python } = await import('@codemirror/lang-python');
+      return python();
+    }
+    case 'sql': {
+      const { sql } = await import('@codemirror/lang-sql');
+      return sql();
+    }
+    default:
+      return [];
+  }
+}
 
 /** What main.ts needs from either editor (visual WYSIWYG or markdown source). */
 export interface ContentEditor {
@@ -46,9 +92,16 @@ export class SourceEditor implements ContentEditor {
   private view: EditorView;
   private baseline: string;
 
-  constructor(parent: HTMLElement, doc: string, opts: EditorOptions) {
+  static async create(parent: HTMLElement, doc: string, opts: EditorOptions): Promise<SourceEditor> {
+    const langExt = await loadLanguageExtension(opts.cmLang);
+    return new SourceEditor(parent, doc, opts, langExt);
+  }
+
+  constructor(parent: HTMLElement, doc: string, opts: EditorOptions, langExt: Extension = []) {
+    const allowImages = opts.allowImageUpload ?? true;
     // Pasted or dropped images are uploaded and inserted as ![alt](images/…) at the cursor / drop point.
     const insertImages = (view: EditorView, files: File[], pos: number) => {
+      if (!allowImages) return;
       opts
         .uploadImages(files)
         .then((images) => {
@@ -67,7 +120,7 @@ export class SourceEditor implements ContentEditor {
       parent,
       extensions: [
         basicSetup,
-        markdown(),
+        langExt,
         EditorView.lineWrapping,
         theme,
         EditorView.updateListener.of((update) => {
@@ -75,6 +128,7 @@ export class SourceEditor implements ContentEditor {
         }),
         EditorView.domEventHandlers({
           paste(event, view) {
+            if (!allowImages) return false;
             const files = [...(event.clipboardData?.files ?? [])].filter(isImageFile);
             if (files.length === 0) return false;
             event.preventDefault();
@@ -82,6 +136,7 @@ export class SourceEditor implements ContentEditor {
             return true;
           },
           drop(event, view) {
+            if (!allowImages) return false;
             const files = [...(event.dataTransfer?.files ?? [])].filter(isImageFile);
             if (files.length === 0) return false;
             event.preventDefault();

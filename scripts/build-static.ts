@@ -14,8 +14,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { build } from 'vite';
+import { isSupportedFile } from '../shared/formats';
 import { isIgnoredSegment } from '../shared/tree';
-import { IMAGE_EXT, MARKDOWN_EXT } from '../shared/types';
 import { SearchIndex } from '../server/search';
 import { buildTree } from '../server/tree';
 
@@ -36,7 +36,7 @@ async function copyContent(rel = ''): Promise<number> {
     const childRel = path.join(rel, entry.name);
     if (entry.isDirectory()) {
       count += await copyContent(childRel);
-    } else if (entry.isFile() && (MARKDOWN_EXT.test(entry.name) || IMAGE_EXT.test(entry.name))) {
+    } else if (entry.isFile() && isSupportedFile(entry.name)) {
       const dest = path.join(outDir, 'content', childRel);
       await fs.mkdir(path.dirname(dest), { recursive: true });
       await fs.copyFile(path.join(contentDir, childRel), dest);

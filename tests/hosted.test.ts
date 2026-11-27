@@ -139,13 +139,16 @@ describe('connected (GitHub API)', () => {
     await ds.connect('good-token');
   });
 
-  it('lists only visible markdown under the content folder', async () => {
+  it('lists only visible supported files under the content folder', async () => {
     expect(await ds.listTree()).toEqual([
       {
         name: 'guide',
         path: 'guide',
         type: 'dir',
-        children: [{ name: 'Ghi chú.md', path: 'guide/Ghi chú.md', type: 'file' }],
+        children: [
+          { name: 'diagram.png', path: 'guide/diagram.png', type: 'file' },
+          { name: 'Ghi chú.md', path: 'guide/Ghi chú.md', type: 'file' },
+        ],
       },
       { name: 'README.md', path: 'README.md', type: 'file' },
     ]);
@@ -212,8 +215,8 @@ describe('connected (GitHub API)', () => {
 });
 
 describe('treeFromPaths', () => {
-  it('nests, sorts folders first in natural order, and skips hidden/non-markdown', () => {
-    const tree = treeFromPaths(['b.md', 'a/step 10.md', 'a/step 2.md', 'a/x.png', '.git/c.md', 'node_modules/d.md']);
+  it('nests, sorts folders first in natural order, and skips hidden/unsupported', () => {
+    const tree = treeFromPaths(['b.md', 'a/step 10.md', 'a/step 2.md', 'a/x.bin', '.git/c.md', 'node_modules/d.md']);
     expect(tree).toEqual([
       {
         name: 'a',

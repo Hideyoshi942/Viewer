@@ -11,3 +11,17 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare module 'mammoth/mammoth.browser' {
+  export function convertToHtml(input: { arrayBuffer: ArrayBuffer }): Promise<{ value: string; messages: unknown[] }>;
+}
+
+declare module '*.mjs?url' {
+  const src: string;
+  export default src;
+}
+
+declare module 'read-excel-file/browser' {
+  export function readSheetNames(file: Blob | File | ArrayBuffer): Promise<string[]>;
+  export default function readXlsxFile(file: Blob | File | ArrayBuffer, options?: { sheet?: string | number }): Promise<unknown[][]>;
+}

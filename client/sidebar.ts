@@ -1,5 +1,7 @@
+import { getFormat, stripDisplayExtension, type FormatCategory } from '../shared/formats';
 import { fold } from '../shared/search';
 import type { TreeNode } from '../shared/types';
+import { formatIconName, iconEl } from './icons';
 import { fileHref } from './links';
 
 const STORAGE_KEY = 'mdv.expanded';
@@ -16,12 +18,28 @@ function saveExpanded(expanded: Set<string>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...expanded]));
   } catch {
-    // Storage unavailable (private mode etc.) — expand state just won't persist.
+    // Storage unavailable
   }
 }
 
-function displayName(node: TreeNode): string {
-  return node.type === 'file' ? node.name.replace(/\.(md|markdown)$/i, '') : node.name;
+export function flattenFiles(nodes: TreeNode[]): string[] {
+  return nodes.flatMap((n) => (n.type === 'file' ? [n.path] : flattenFiles(n.children ?? [])));
+}
+
+export function collectCategories(nodes: TreeNode[]): FormatCategory[] {
+  const cats = new Set<FormatCategory>();
+  const walk = (list: TreeNode[]) => {
+    for (const n of list) {
+      if (n.type === 'dir') walk(n.children ?? []);
+      else {
+        const fmt = getFormat(n.path);
+        if (fmt) cats.add(fmt.category);
+      }
+    }
+  };
+  walk(nodes);
+  const order: FormatCategory[] = ['markdown', 'code', 'data', 'document', 'media'];
+  return order.filter((c) => cats.has(c));
 }
 
 export class Sidebar {
@@ -29,7 +47,7 @@ export class Sidebar {
   private expanded = loadExpanded();
   private active = '';
   private filter = '';
-  /** When set, each top-level folder gets a × button that calls this with the folder's path. */
+  private categoryFilter: FormatCategory | 'all' = 'all';
   private onRemoveRoot: ((path: string) => void) | null = null;
 
   constructor(private el: HTMLElement) {
@@ -64,9 +82,13 @@ export class Sidebar {
     this.render();
   }
 
+  setCategoryFilter(cat: FormatCategory | 'all') {
+    this.categoryFilter = cat;
+    this.render();
+  }
+
   setActive(path: string) {
     this.active = path;
-    // Open every folder on the way to the active file.
     const parts = path.split('/');
     for (let i = 1; i < parts.length; i++) this.expanded.add(parts.slice(0, i).join('/'));
     saveExpanded(this.expanded);
@@ -75,9 +97,10 @@ export class Sidebar {
   }
 
   private render() {
-    const nodes = this.filter ? this.filtered(this.tree) : this.tree;
+    const hasFilter = this.filter !== '' || this.categoryFilter !== 'all';
+    const nodes = hasFilter ? this.filtered(this.tree) : this.tree;
     if (nodes.length === 0) {
-      this.el.innerHTML = `<p class="tree-empty">${this.filter ? 'No file names match' : 'No markdown files found'}</p>`;
+      this.el.innerHTML = `<p class="tree-empty">${hasFilter ? 'No matching files' : 'No supported files found'}</p>`;
       return;
     }
     this.el.replaceChildren(this.renderList(nodes, true));
@@ -85,7 +108,11 @@ export class Sidebar {
 
   private filtered(nodes: TreeNode[]): TreeNode[] {
     return nodes.flatMap((node) => {
-      if (node.type === 'file') return fold(node.name).includes(this.filter) ? [node] : [];
+      if (node.type === 'file') {
+        const nameOk = !this.filter || fold(node.name).includes(this.filter);
+        const catOk = this.categoryFilter === 'all' || getFormat(node.path)?.category === this.categoryFilter;
+        return nameOk && catOk ? [node] : [];
+      }
       const children = this.filtered(node.children ?? []);
       return children.length ? [{ ...node, children }] : [];
     });
@@ -96,12 +123,26 @@ export class Sidebar {
     for (const node of nodes) {
       const li = document.createElement('li');
       if (node.type === 'dir') {
-        const open = this.filter !== '' || this.expanded.has(node.path);
+        const open = this.filter !== '' || this.categoryFilter !== 'all' || this.expanded.has(node.path);
         const button = document.createElement('button');
         button.className = 'row dir';
         button.dataset.dir = node.path;
         button.setAttribute('aria-expanded', String(open));
-        button.textContent = node.name;
+
+        const chev = document.createElement('span');
+        chev.className = 'dir-chevron';
+        chev.append(iconEl('chevronRight', 13));
+
+        const dirIcon = document.createElement('span');
+        dirIcon.className = 'dir-icon';
+        dirIcon.append(iconEl(open ? 'folderOpen' : 'folder', 15));
+
+        const label = document.createElement('span');
+        label.className = 'row-label';
+        label.textContent = node.name;
+
+        button.append(chev, dirIcon, label);
+
         if (top && this.onRemoveRoot) {
           const remove = document.createElement('button');
           remove.className = 'remove-root';
@@ -122,7 +163,25 @@ export class Sidebar {
         a.className = 'row file';
         a.href = fileHref(node.path);
         a.title = node.path;
-        a.textContent = displayName(node);
+
+        const fmt = getFormat(node.path);
+        const iconWrap = document.createElement('span');
+        iconWrap.className = 'file-icon';
+        if (fmt) iconWrap.dataset.cat = fmt.category;
+        iconWrap.append(iconEl(fmt ? formatIconName(fmt.kind) : 'doc', 14));
+
+        const label = document.createElement('span');
+        label.className = 'row-label';
+        label.textContent = stripDisplayExtension(node.name);
+        a.append(iconWrap, label);
+
+        if (fmt && fmt.kind !== 'markdown') {
+          const extPill = document.createElement('span');
+          extPill.className = 'row-ext';
+          extPill.textContent = fmt.ext;
+          a.append(extPill);
+        }
+
         if (node.path === this.active) {
           a.classList.add('active');
           a.setAttribute('aria-current', 'page');
@@ -135,7 +194,6 @@ export class Sidebar {
   }
 }
 
-/** README.md / index.md, else the first file at this level, else look inside folders (in order). */
 export function defaultFile(tree: TreeNode[]): string | null {
   const preferred = tree.find((n) => n.type === 'file' && /^(readme|index)\.(md|markdown)$/i.test(n.name));
   if (preferred) return preferred.path;

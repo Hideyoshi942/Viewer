@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isSearchableFile } from '../shared/formats';
 import { searchDocs, type SearchDoc } from '../shared/search';
 import type { SearchHit, TreeNode } from '../shared/types';
 import { buildTree } from './tree';
+
+const MAX_SEARCH_BYTES = 512 * 1024;
 
 function filePaths(nodes: TreeNode[]): string[] {
   return nodes.flatMap((n) => (n.type === 'file' ? [n.path] : filePaths(n.children ?? [])));
@@ -29,14 +32,20 @@ export class SearchIndex {
     return searchDocs(await this.docs, query);
   }
 
-  /** Every file as {path, content}; also used by the static build. */
+  /** Every searchable text file (<= 512 KB) as {path, content}; also used by the static build. */
   async load(): Promise<SearchDoc[]> {
-    const paths = filePaths(await buildTree(this.root));
-    return Promise.all(
-      paths.map(async (p) => ({
-        path: p,
-        content: (await fs.readFile(path.join(this.root, ...p.split('/')), 'utf8')).replace(/^\uFEFF/, ''),
-      })),
+    const paths = filePaths(await buildTree(this.root)).filter(isSearchableFile);
+    const docs = await Promise.all(
+      paths.map(async (p) => {
+        const full = path.join(this.root, ...p.split('/'));
+        const stat = await fs.stat(full);
+        if (stat.size > MAX_SEARCH_BYTES) return null;
+        return {
+          path: p,
+          content: (await fs.readFile(full, 'utf8')).replace(/^\uFEFF/, ''),
+        };
+      }),
     );
+    return docs.filter((d): d is SearchDoc => d !== null);
   }
 }

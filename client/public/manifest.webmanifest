@@ -1,13 +1,13 @@
 {
-  "name": "MD Viewer",
-  "short_name": "MD Viewer",
-  "description": "Browse and edit Markdown folders offline or on the go.",
+  "name": "Folio — Universal Knowledge & File Viewer",
+  "short_name": "Folio",
+  "description": "Browse, read, and edit Markdown, Code, Data, PDF, Office, and Media folders offline or on the go.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0d1117",
-  "theme_color": "#0969da",
+  "background_color": "#0f1115",
+  "theme_color": "#1d4ed8",
   "categories": ["productivity", "utilities", "developer tools"],
   "icons": [
     {

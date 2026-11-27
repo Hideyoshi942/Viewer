@@ -40,6 +40,20 @@ export function fileHref(path: string, anchor = ''): string {
   return `#/${encoded}${anchor ? `#${encodeURIComponent(anchor)}` : ''}`;
 }
 
+/** In-app URL for a folder overview dashboard: `#/@folder` or `#/@folder/sub/dir`. */
+export function folderHref(path = ''): string {
+  if (!path) return '#/@folder';
+  return `#/@folder/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+export function parseFolderRoute(hash: string): string | null {
+  if (hash === '#/@folder') return '';
+  if (hash.startsWith('#/@folder/')) {
+    return hash.slice('#/@folder/'.length).split('/').map(safeDecode).join('/');
+  }
+  return null;
+}
+
 /** Inverse of fileHref, given `location.hash`. */
 export function parseRoute(hash: string): { path: string; anchor: string } | null {
   if (!hash.startsWith('#/')) return null;

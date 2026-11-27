@@ -124,7 +124,7 @@ describe('POST /api/file (create)', () => {
     expect(await read('guide/intro.md')).toBe('# Intro\n');
   });
 
-  it.each(['notes.txt', '../out.md', '.hidden/a.md'])('rejects %s', async (p) => {
+  it.each(['app.bin', '../out.md', '.hidden/a.md'])('rejects %s', async (p) => {
     await request(app).post('/api/file').query({ path: p }).send({ content: '' }).expect(400);
   });
 });
@@ -153,9 +153,10 @@ describe('POST /api/rename', () => {
     expect(await read('other.md')).toBe('other');
   });
 
-  it('rejects moving outside the root or away from .md', async () => {
+  it('rejects moving outside the root, to unsupported ext, or text to binary', async () => {
     await request(app).post('/api/rename').send({ from: 'guide/intro.md', to: '../x.md' }).expect(400);
-    await request(app).post('/api/rename').send({ from: 'guide/intro.md', to: 'intro.txt' }).expect(400);
+    await request(app).post('/api/rename').send({ from: 'guide/intro.md', to: 'intro.bin' }).expect(400);
+    await request(app).post('/api/rename').send({ from: 'guide/intro.md', to: 'intro.png' }).expect(400);
   });
 });
 

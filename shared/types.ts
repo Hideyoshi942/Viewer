@@ -14,6 +14,13 @@ export type FileContent = {
    * Local server: `<mtimeMs>-<size>`. GitHub: the blob sha.
    */
   version: string;
+  size?: number;
+};
+
+export type FileMeta = {
+  path: string;
+  size: number;
+  mtimeMs: number;
 };
 
 export type SaveResult = { path: string; version: string };

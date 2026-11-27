@@ -3,13 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="description" content="Browse and edit Markdown folders offline or on the go." />
+    <meta name="theme-color" content="#fbfbfa" />
+    <meta
+      name="description"
+      content="Folio — Universal Knowledge & File Viewer for Markdown, Code, Data, PDF, Office, and Media."
+    />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="MD Viewer" />
-    <title>MD Viewer</title>
+    <meta name="apple-mobile-web-app-title" content="Folio" />
+    <title>Folio — Universal Viewer</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
@@ -19,40 +22,110 @@
       <aside class="sidebar" aria-label="Files">
         <div class="sidebar-head">
           <div class="brand-row">
-            <span class="brand">MD Viewer</span>
+            <a id="brand-home" class="brand" href="#/@folder" title="Folder overview">
+              <span class="brand-mark" aria-hidden="true"></span>
+              <span class="brand-name">Folio</span>
+            </a>
             <span class="brand-actions">
-              <button id="install-app" class="btn small" type="button" title="Install app" hidden>📲 Install</button>
-              <button id="theme-toggle" class="btn small" type="button" title="Theme: auto">◐</button>
-              <button id="open-folder" class="btn small" type="button" title="Open a folder from this device">📂 Open</button>
-              <button id="new-file" class="btn small" type="button" title="New file">+ New</button>
-              <button id="sidebar-close" class="btn small mobile-only" type="button" aria-label="Close files" title="Close">✕</button>
+              <button id="install-app" class="btn small icon-btn" type="button" title="Install app" hidden>Install</button>
+              <button id="open-folder" class="btn small icon-btn" type="button" title="Open folder, ZIP, or files"></button>
+              <button id="new-file" class="btn small icon-btn" type="button" title="New file"></button>
+              <button id="sidebar-collapse" class="btn small icon-btn desktop-only" type="button" aria-label="Collapse sidebar" title="Collapse sidebar ([)"></button>
+              <button id="sidebar-close" class="btn small icon-btn mobile-only" type="button" aria-label="Close files" title="Close"></button>
             </span>
           </div>
-          <input id="filter" type="search" placeholder="Search files and text…" autocomplete="off" />
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="filter" type="search" placeholder="Filter files &amp; text…" autocomplete="off" />
+            <button id="cmd-trigger" class="kbd-hint" type="button" title="Command Palette (Ctrl+K)">Ctrl+K</button>
+          </div>
+          <div id="format-filters" class="format-filters" role="group" aria-label="Filter by format"></div>
         </div>
         <div class="sidebar-scroll">
           <nav id="tree" class="tree"></nav>
           <section id="search-results" class="search-results" aria-label="Matches in file contents" hidden></section>
         </div>
         <div id="account" class="sidebar-foot" hidden></div>
+        <div id="sidebar-resizer" class="sidebar-resizer" aria-hidden="true"></div>
       </aside>
       <div id="backdrop" class="backdrop"></div>
       <main class="main">
+        <div id="read-progress" class="read-progress" aria-hidden="true"></div>
         <header class="topbar">
-          <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Show files" title="Files">☰</button>
+          <button id="menu-toggle" class="icon-btn topbar-btn" type="button" aria-label="Show files" title="Toggle sidebar ([)"></button>
           <div id="breadcrumb" class="breadcrumb"></div>
-          <button id="toc-toggle" class="menu-toggle toc-toggle" type="button" aria-label="On this page" title="On this page" hidden>≣</button>
-          <button id="open-folder-top" class="menu-toggle" type="button" aria-label="Open a folder from this device" title="Open folder">📂</button>
+          <span id="format-badge" class="format-badge" hidden></span>
+          <div class="topbar-tools">
+            <button id="cmd-open-top" class="icon-btn topbar-btn" type="button" aria-label="Command Palette" title="Search &amp; Commands (Ctrl+K)"></button>
+            <button id="appearance-toggle" class="icon-btn topbar-btn" type="button" aria-label="Reading appearance" aria-expanded="false" title="Theme, Font &amp; Width (Aa)">Aa</button>
+            <button id="focus-toggle" class="icon-btn topbar-btn desktop-only" type="button" aria-label="Focus mode" title="Focus mode (F)"></button>
+            <button id="toc-toggle" class="icon-btn topbar-btn toc-toggle" type="button" aria-label="On this page" title="On this page" hidden></button>
+            <button id="open-folder-top" class="icon-btn topbar-btn mobile-only" type="button" aria-label="Open folder from device" title="Open folder"></button>
+          </div>
           <div id="actions" class="actions"></div>
         </header>
         <div id="banner" class="banner" role="alert" hidden></div>
         <div class="workspace">
           <div id="editor-pane" class="editor-pane"></div>
-          <article id="content" class="markdown-body"></article>
+          <div id="content" class="viewer-stage"></div>
           <nav id="toc" class="toc" aria-label="On this page" hidden></nav>
         </div>
+        <button id="focus-exit" class="focus-exit-pill" type="button" hidden>Exit Focus (Esc)</button>
       </main>
     </div>
+
+    <div id="drop-overlay" class="drop-overlay" hidden>
+      <div class="drop-overlay-card">
+        <div id="drop-overlay-icon" class="drop-overlay-icon"></div>
+        <h2>Drop files, folders, or .zip to open</h2>
+        <p>Everything is read locally in your browser. Nothing is uploaded.</p>
+      </div>
+    </div>
+
+    <dialog id="command-dialog" class="dialog dialog-command" aria-label="Command Palette">
+      <div class="cmd-head">
+        <span id="cmd-search-icon" class="cmd-search-icon" aria-hidden="true"></span>
+        <input id="cmd-input" type="search" placeholder="Jump to file, search text, or type > for commands…" autocomplete="off" />
+        <kbd class="cmd-esc">Esc</kbd>
+      </div>
+      <div id="cmd-list" class="cmd-list" role="listbox"></div>
+    </dialog>
+
+    <dialog id="new-file-dialog" class="dialog">
+      <form id="new-file-form" method="dialog">
+        <h2>Create new file</h2>
+        <p>Enter a relative path (use <code>/</code> for subfolders) or pick a format preset.</p>
+        <div id="new-file-presets" class="preset-chips"></div>
+        <input id="new-file-path" class="text-input" type="text" placeholder="notes/untitled.md" autocomplete="off" />
+        <div class="dialog-actions">
+          <button class="btn primary" value="create">Create</button>
+          <button class="btn" value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="rename-dialog" class="dialog">
+      <form id="rename-form" method="dialog">
+        <h2>Rename or move file</h2>
+        <p>Use <code>/</code> to move into another folder.</p>
+        <input id="rename-path" class="text-input" type="text" autocomplete="off" />
+        <div class="dialog-actions">
+          <button class="btn primary" value="rename">Rename</button>
+          <button class="btn" value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="delete-dialog" class="dialog">
+      <form method="dialog">
+        <h2>Delete file?</h2>
+        <p id="delete-message"></p>
+        <div class="dialog-actions">
+          <button class="btn danger" value="delete">Delete</button>
+          <button class="btn" value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="conflict-dialog" class="dialog">
       <form method="dialog">
@@ -68,24 +141,23 @@
     </dialog>
 
     <dialog id="open-dialog" class="dialog">
-      <h2>Open a folder from this device</h2>
+      <h2>Open a folder or files from this device</h2>
       <p>
-        The markdown files are read right here in your browser to show them. Nothing is uploaded. The folder is
-        remembered on this device until you close it.
+        Files are read right here in your browser — Markdown, Code, JSON, YAML, CSV, PDF, Word, Excel, HTML, Images,
+        Audio, and Video. Nothing is uploaded.
       </p>
       <div class="open-choices">
         <button id="open-choose-folder" class="btn primary" type="button">Choose a folder</button>
-        <button id="open-choose-files" class="btn" type="button">Choose a .zip or .md files</button>
+        <button id="open-choose-files" class="btn" type="button">Choose .zip or files</button>
       </div>
       <p class="hint">
-        On a phone, choosing a folder often isn't possible. Zip the folder (Files app → Compress) and choose the
-        .zip, or select the .md files.
+        Tip: You can also drag and drop a folder, <code>.zip</code>, or individual files anywhere onto this window.
       </p>
       <form method="dialog" class="dialog-actions">
         <button class="btn" value="cancel">Cancel</button>
       </form>
       <input id="folder-input" type="file" webkitdirectory multiple hidden />
-      <input id="files-input" type="file" multiple accept=".md,.markdown,.zip,application/zip,image/*" hidden />
+      <input id="files-input" type="file" multiple hidden />
     </dialog>
 
     <dialog id="changes-dialog" class="dialog dialog-wide">

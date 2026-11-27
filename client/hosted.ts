@@ -1,7 +1,7 @@
 import { searchDocs, type SearchDoc } from '../shared/search';
 import { treeFromPaths } from '../shared/tree';
 import type { FileContent, SaveResult, SearchHit, TreeNode } from '../shared/types';
-import { decodeBase64Utf8, encodeBase64Bytes, encodeBase64Utf8 } from './base64';
+import { decodeBase64Bytes, decodeBase64Utf8, encodeBase64Bytes, encodeBase64Utf8 } from './base64';
 import { ApiError, ConflictError, type DataSource } from './data';
 
 export type HostedConfig = {
@@ -114,6 +114,24 @@ export class HostedSource implements DataSource {
         ? file.content
         : (await this.gh<{ content: string }>('GET', `/repos/${this.config.repo}/git/blobs/${file.sha}`)).content;
     return { path, content: normalize(decodeBase64Utf8(base64)), version: file.sha };
+  }
+
+  async readBinary(path: string): Promise<ArrayBuffer> {
+    if (!this.canWrite) {
+      const res = await this.deps.fetch(`${this.config.base}content/${encodePath(path)}`);
+      if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'File not found' : res.statusText);
+      return res.arrayBuffer();
+    }
+    const file = await this.gh<{ content: string; encoding: string; sha: string }>(
+      'GET',
+      `${this.contentsPath(path)}?ref=${encodeURIComponent(this.config.branch)}`,
+    );
+    const base64 =
+      file.encoding === 'base64'
+        ? file.content
+        : (await this.gh<{ content: string }>('GET', `/repos/${this.config.repo}/git/blobs/${file.sha}`)).content;
+    const bytes = decodeBase64Bytes(base64);
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   }
 
   assetUrl(path: string): string {

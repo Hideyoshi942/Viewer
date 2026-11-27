@@ -1,4 +1,4 @@
-const CACHE_NAME = 'md-viewer-v1';
+const CACHE_NAME = 'folio-viewer-v2';
 const PRECACHE_URLS = ['./', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

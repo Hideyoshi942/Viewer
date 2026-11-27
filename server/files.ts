@@ -1,13 +1,22 @@
 import type { Stats } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { IMAGE_EXT, MARKDOWN_EXT, META_DIR, type FileContent, type SaveResult } from '../shared/types';
+import { canEditFile, isSupportedFile, isTextFile } from '../shared/formats';
+import { IMAGE_EXT, META_DIR, type FileContent, type FileMeta, type SaveResult } from '../shared/types';
 import { assertCreatableInside, HttpError, resolveExisting, resolveSafe, toRel } from './paths';
 
 const versionOf = (stat: Stats) => `${stat.mtimeMs}-${stat.size}`;
 
-function assertMarkdown(full: string) {
-  if (!MARKDOWN_EXT.test(full)) throw new HttpError(400, 'Not a markdown file');
+function assertReadableText(full: string) {
+  if (!isTextFile(full)) throw new HttpError(400, 'Not a text file');
+}
+
+function assertEditableText(full: string) {
+  if (!canEditFile(full)) throw new HttpError(400, 'File format is not editable');
+}
+
+function assertSupported(full: string) {
+  if (!isSupportedFile(full)) throw new HttpError(400, 'Unsupported file format');
 }
 
 async function statFile(full: string): Promise<Stats> {
@@ -103,23 +112,30 @@ async function exists(full: string) {
 
 // ---------- Operations ----------
 
-export async function readMarkdown(root: string, relPath: unknown): Promise<FileContent> {
+export async function readTextFile(root: string, relPath: unknown): Promise<FileContent> {
   const full = await resolveExisting(root, relPath);
-  assertMarkdown(full);
+  assertReadableText(full);
   const stat = await statFile(full);
-  // The API always speaks `\n`; saveMarkdown puts the file's own line endings back.
+  // The API always speaks `\n`; saveTextFile puts the file's own line endings back.
   const content = (await fs.readFile(full, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
-  return { path: await relOf(root, full), content, version: versionOf(stat) };
+  return { path: await relOf(root, full), content, version: versionOf(stat), size: stat.size };
 }
 
-export async function saveMarkdown(
+export async function readMeta(root: string, relPath: unknown): Promise<FileMeta> {
+  const full = await resolveExisting(root, relPath);
+  assertSupported(full);
+  const stat = await statFile(full);
+  return { path: await relOf(root, full), size: stat.size, mtimeMs: stat.mtimeMs };
+}
+
+export async function saveTextFile(
   root: string,
   relPath: unknown,
   content: string,
   baseVersion: string,
 ): Promise<SaveResult> {
   const full = await resolveExisting(root, relPath);
-  assertMarkdown(full);
+  assertEditableText(full);
   const rel = await relOf(root, full);
 
   return withLock(full, async () => {
@@ -134,9 +150,9 @@ export async function saveMarkdown(
   });
 }
 
-export async function createMarkdown(root: string, relPath: unknown, content: string): Promise<SaveResult> {
+export async function createTextFile(root: string, relPath: unknown, content: string): Promise<SaveResult> {
   const full = resolveSafe(root, relPath);
-  assertMarkdown(full);
+  assertEditableText(full);
   await assertCreatableInside(root, full);
   await fs.mkdir(path.dirname(full), { recursive: true });
   try {
@@ -148,12 +164,15 @@ export async function createMarkdown(root: string, relPath: unknown, content: st
   return { path: await relOf(root, full), version: versionOf(await fs.stat(full)) };
 }
 
-export async function renameMarkdown(root: string, fromRel: unknown, toRelPath: unknown): Promise<SaveResult> {
+export async function renameFile(root: string, fromRel: unknown, toRelPath: unknown): Promise<SaveResult> {
   const from = await resolveExisting(root, fromRel);
-  assertMarkdown(from);
+  assertSupported(from);
   await statFile(from);
   const to = resolveSafe(root, toRelPath);
-  assertMarkdown(to);
+  assertSupported(to);
+  if (isTextFile(from) !== isTextFile(to)) {
+    throw new HttpError(400, 'Cannot change between text and binary file types');
+  }
   await assertCreatableInside(root, to);
 
   // On case-insensitive filesystems "a.md" → "A.md" points at the same file; that's allowed.
@@ -167,9 +186,9 @@ export async function renameMarkdown(root: string, fromRel: unknown, toRelPath: 
 }
 
 /** Move the file to .mdviewer/trash/<timestamp>/<rel> instead of deleting it. */
-export async function trashMarkdown(root: string, relPath: unknown): Promise<void> {
+export async function trashFile(root: string, relPath: unknown): Promise<void> {
   const full = await resolveExisting(root, relPath);
-  assertMarkdown(full);
+  assertSupported(full);
   await statFile(full);
   const rel = await relOf(root, full);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -178,6 +197,14 @@ export async function trashMarkdown(root: string, relPath: unknown): Promise<voi
   await renameWithRetry(full, dest);
   await pruneEmptyDirs(root, path.dirname(full));
 }
+
+export {
+  readTextFile as readMarkdown,
+  saveTextFile as saveMarkdown,
+  createTextFile as createMarkdown,
+  renameFile as renameMarkdown,
+  trashFile as trashMarkdown,
+};
 
 /**
  * Store an uploaded image. Never overwrites: if the name is taken, `-1`, `-2`… is added.

@@ -1,0 +1,5 @@
+Folio — Universal Knowledge & File Viewer
+==========================================
+- Supports Markdown, Code, JSON/YAML, CSV/TSV, HTML/SVG, PDF, DOCX, XLSX, Images, Audio, Video.
+- Press Ctrl+K (or Cmd+K) to open the Command Palette.
+- Press F for Focus Mode, [ to collapse/expand the sidebar.

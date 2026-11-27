@@ -79,10 +79,10 @@ it('pushes add, change and unlink events for markdown files', async () => {
   expect(events).toContainEqual({ type: 'unlink', path: 'a.md' });
 });
 
-it('ignores non-markdown files and the hidden .mdviewer folder', async () => {
+it('ignores unsupported files and the hidden .mdviewer folder', async () => {
   const events = await collect(
     async () => {
-      await fs.writeFile(path.join(tmp, 'notes.txt'), 'x');
+      await fs.writeFile(path.join(tmp, 'raw.bin'), 'x');
       await fs.mkdir(path.join(tmp, '.mdviewer/backup'), { recursive: true });
       await fs.writeFile(path.join(tmp, '.mdviewer/backup/a.md'), 'x');
       await new Promise((r) => setTimeout(r, 300));

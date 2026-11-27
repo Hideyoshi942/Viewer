@@ -1,10 +1,11 @@
 import { watch, type FSWatcher } from 'chokidar';
 import path from 'node:path';
+import { isSupportedFile } from '../shared/formats';
 import { isIgnoredSegment } from '../shared/tree';
-import { MARKDOWN_EXT, type FsEvent } from '../shared/types';
+import { type FsEvent } from '../shared/types';
 import { toRel } from './paths';
 
-/** Watch the root for markdown changes (same visibility rules as the tree). */
+/** Watch the root for supported file changes (same visibility rules as the tree). */
 export function watchRoot(root: string, onEvent: (event: FsEvent) => void): FSWatcher {
   const watcher = watch(root, {
     ignoreInitial: true,
@@ -12,7 +13,7 @@ export function watchRoot(root: string, onEvent: (event: FsEvent) => void): FSWa
       const rel = path.relative(root, p);
       if (!rel) return false;
       if (rel.split(path.sep).some(isIgnoredSegment)) return true;
-      return !!stats?.isFile() && !MARKDOWN_EXT.test(p);
+      return !!stats?.isFile() && !isSupportedFile(p);
     },
     // Wait until a write settles so the browser never fetches a half-written file.
     awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 25 },

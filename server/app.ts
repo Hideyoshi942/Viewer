@@ -1,8 +1,8 @@
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import fs from 'node:fs/promises';
-import { IMAGE_EXT } from '../shared/types';
+import { getFormat, isAssetServable } from '../shared/formats';
 import type { EventHub } from './events';
-import { createMarkdown, readMarkdown, renameMarkdown, saveImage, saveMarkdown, trashMarkdown } from './files';
+import { createTextFile, readMeta, readTextFile, renameFile, saveImage, saveTextFile, trashFile } from './files';
 import { HttpError, resolveExisting } from './paths';
 import { SearchIndex } from './search';
 import { buildTree } from './tree';
@@ -79,27 +79,31 @@ export function createApp(root: string, options: AppOptions = {}) {
   });
 
   app.get('/api/file', async (req, res) => {
-    res.json(await readMarkdown(root, req.query.path));
+    res.json(await readTextFile(root, req.query.path));
+  });
+
+  app.get('/api/meta', async (req, res) => {
+    res.json(await readMeta(root, req.query.path));
   });
 
   app.put('/api/file', async (req, res) => {
     const content = requireString(req.body?.content, 'content');
     const baseVersion = requireString(req.body?.baseVersion, 'baseVersion');
-    res.json(await saveMarkdown(root, req.query.path, content, baseVersion));
+    res.json(await saveTextFile(root, req.query.path, content, baseVersion));
   });
 
   app.post('/api/file', async (req, res) => {
     const content = requireString(req.body?.content ?? '', 'content');
-    res.status(201).json(await createMarkdown(root, req.query.path, content));
+    res.status(201).json(await createTextFile(root, req.query.path, content));
   });
 
   app.delete('/api/file', async (req, res) => {
-    await trashMarkdown(root, req.query.path);
+    await trashFile(root, req.query.path);
     res.status(204).end();
   });
 
   app.post('/api/rename', async (req, res) => {
-    res.json(await renameMarkdown(root, req.body?.from, req.body?.to));
+    res.json(await renameFile(root, req.body?.from, req.body?.to));
   });
 
   if (options.events) {
@@ -114,12 +118,17 @@ export function createApp(root: string, options: AppOptions = {}) {
 
   app.get('/api/asset', async (req, res) => {
     const full = await resolveExisting(root, req.query.path);
-    if (!IMAGE_EXT.test(full) || !(await fs.stat(full)).isFile()) {
-      throw new HttpError(400, 'Not an image');
+    if (!isAssetServable(full) || !(await fs.stat(full)).isFile()) {
+      throw new HttpError(400, 'Unsupported asset type');
     }
+    const fmt = getFormat(full);
     // SVGs can carry scripts; this stops them running if the asset URL is opened directly.
-    res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    res.set(
+      'Content-Security-Policy',
+      fmt?.kind === 'svg' ? "default-src 'none'; style-src 'unsafe-inline'" : "default-src 'none'",
+    );
     res.set('X-Content-Type-Options', 'nosniff');
+    if (fmt?.mime) res.type(fmt.mime);
     res.sendFile(full);
   });
 

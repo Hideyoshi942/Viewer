@@ -25,8 +25,8 @@ beforeAll(async () => {
   await write('guide/deep/nested/tip.md', '# Tip');
   await write('Tiếng Việt/ghi chú.md', '# Xin chào');
   await write('guide/diagram.png', 'png-bytes');
-  await write('guide/notes.txt', 'not markdown');
-  await write('empty/only.txt', 'no md here');
+  await write('guide/notes.txt', 'plain text');
+  await write('empty/only.bin', 'unsupported binary');
   await write('.git/HEAD.md', 'hidden');
   await write('node_modules/pkg/readme.md', 'ignored');
   await fs.writeFile(path.join(tmp, 'secret.md'), '# outside');
@@ -43,7 +43,9 @@ describe('GET /api/tree', () => {
     const guide = res.body[0];
     expect(guide.children.map((n: { name: string }) => n.name)).toEqual([
       'deep',
+      'diagram.png',
       'intro.md',
+      'notes.txt',
       'step 2.md',
       'step 10.md',
     ]);
@@ -54,13 +56,13 @@ describe('GET /api/tree', () => {
     });
   });
 
-  it('skips hidden folders, node_modules and folders without markdown', async () => {
+  it('skips hidden folders, node_modules and folders without supported files', async () => {
     const res = await request(app).get('/api/tree');
     const json = JSON.stringify(res.body);
     expect(json).not.toContain('.git');
     expect(json).not.toContain('node_modules');
     expect(json).not.toContain('empty');
-    expect(json).not.toContain('notes.txt');
+    expect(json).not.toContain('only.bin');
   });
 });
 
@@ -86,7 +88,8 @@ describe('GET /api/file', () => {
     ['../secret.md', 400],
     ['guide/../../secret.md', 400],
     ['.git/HEAD.md', 400],
-    ['guide/notes.txt', 400],
+    ['guide/diagram.png', 400],
+    ['empty/only.bin', 400],
     ['guide', 400],
     ['missing.md', 404],
   ])('%j → %i', async (p, status) => {

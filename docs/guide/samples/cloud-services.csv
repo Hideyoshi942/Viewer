@@ -1,0 +1,9 @@
+Service,Category,Pricing Model,Free Tier,SLA (%)
+Amazon S3,Storage,Per GB + Requests,5 GB,99.99
+AWS Lambda,Compute,Per Request + Duration,1M requests/mo,99.95
+Amazon DynamoDB,Database,RCU / WCU or On-Demand,25 GB,99.99
+Amazon SQS,Messaging,Per Million Requests,1M requests/mo,99.9
+Amazon CloudFront,CDN,Data Transfer + Requests,1 TB/mo,99.9
+Amazon Cognito,Auth,MAU,50000 MAU,99.9
+AWS Step Functions,Workflow,State Transitions,4000/mo,99.9
+Amazon RDS,Database,Instance Hours,750 hrs/mo,99.95

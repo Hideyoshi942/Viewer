@@ -1,3 +1,4 @@
+import { getFormat } from '../shared/formats';
 import { matchRanges } from '../shared/search';
 import type { SearchHit } from '../shared/types';
 import { fileHref } from './links';
@@ -31,6 +32,14 @@ export function renderSearchResults(el: HTMLElement, hits: SearchHit[], query: s
     const title = document.createElement('span');
     title.className = 'hit-title';
     title.append(highlighted(hit.title, query));
+    const fmt = getFormat(hit.path);
+    if (fmt && fmt.kind !== 'markdown') {
+      const badge = document.createElement('span');
+      badge.className = 'row-ext';
+      badge.style.marginLeft = '6px';
+      badge.textContent = fmt.ext;
+      title.append(badge);
+    }
     const path = document.createElement('span');
     path.className = 'hit-path';
     path.textContent = hit.path;

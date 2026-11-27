@@ -10,17 +10,23 @@ const file = (relPath: string, content: string, type = 'text/markdown') => {
 };
 
 describe('snapshotFromFiles (folder picked with <input webkitdirectory>)', () => {
-  it('keeps the structure under the picked folder, md and images only, no hidden/junk', async () => {
+  it('keeps the structure under the picked folder, supported files only, no hidden/junk', async () => {
     const snap = await snapshotFromFiles([
       file('Notes/README.md', '# Home'),
       file('Notes/guide/Ghi chú.md', '# Xin chào'),
       file('Notes/guide/img/a.png', 'png', 'image/png'),
       file('Notes/guide/data.csv', 'a,b'),
+      file('Notes/guide/raw.bin', 'bin'),
       file('Notes/.obsidian/workspace.md', 'hidden'),
       file('Notes/node_modules/x/readme.md', 'ignored'),
     ]);
     expect(snap.name).toBe('Notes');
-    expect(snap.files.map((f) => f.path).sort()).toEqual(['README.md', 'guide/Ghi chú.md', 'guide/img/a.png']);
+    expect(snap.files.map((f) => f.path).sort()).toEqual([
+      'README.md',
+      'guide/Ghi chú.md',
+      'guide/data.csv',
+      'guide/img/a.png',
+    ]);
   });
 
   it('accepts loose .md files picked one by one', async () => {
@@ -69,7 +75,7 @@ describe('DeviceFolderSource', () => {
       ),
     ]);
 
-    expect(source.fileCount).toBe(2);
+    expect(source.fileCount).toBe(3);
     expect(source.canWrite).toBe(false);
     expect(source.name).toBe('n');
     const tree = await source.listTree();

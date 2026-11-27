@@ -1,3 +1,4 @@
+import { isMarkdownFile, stripDisplayExtension } from './formats';
 import { frontMatterTitle, splitFrontMatter } from './frontmatter';
 import type { SearchHit } from './types';
 
@@ -23,14 +24,22 @@ function foldWithMap(text: string): { folded: string; map: number[] } {
   return { folded, map };
 }
 
-/** Front matter `title:`, else the first H1, else the file name. */
+/** Front matter `title:`, else the first H1 (for Markdown), `<title>` (for HTML), else the file name. */
 export function titleOf(path: string, content: string): string {
-  const { frontMatter, body } = splitFrontMatter(content);
-  return (
-    frontMatterTitle(frontMatter) ||
-    /^#\s+(.+)$/m.exec(body)?.[1].trim() ||
-    path.split('/').pop()!.replace(/\.(md|markdown)$/i, '')
-  );
+  const base = path.split('/').pop()!;
+  if (isMarkdownFile(path)) {
+    const { frontMatter, body } = splitFrontMatter(content);
+    return (
+      frontMatterTitle(frontMatter) ||
+      /^#\s+(.+)$/m.exec(body)?.[1].trim() ||
+      stripDisplayExtension(base)
+    );
+  }
+  if (/\.html?$/i.test(path)) {
+    const m = /<title>([^<]+)<\/title>/i.exec(content);
+    if (m?.[1]?.trim()) return m[1].trim();
+  }
+  return base;
 }
 
 export type SearchDoc = { path: string; content: string };
@@ -57,7 +66,7 @@ export function searchDocs(docs: SearchDoc[], query: string, limit = 30): Search
     for (const t of terms) score += Math.min(folded.split(t).length - 1, 20);
 
     // Snippet from the body when the term appears there; front matter only as a last resort.
-    const bodyStart = splitFrontMatter(doc.content).frontMatter.length;
+    const bodyStart = isMarkdownFile(doc.path) ? splitFrontMatter(doc.content).frontMatter.length : 0;
     const foldedBodyStart = Math.max(0, map.findIndex((orig) => orig >= bodyStart));
     const inBody = folded.indexOf(terms[0], foldedBodyStart);
     const first = inBody !== -1 ? inBody : folded.indexOf(terms[0]);

@@ -1,4 +1,4 @@
-import type { FileContent, FsEvent, SaveResult, SearchHit, TreeNode } from '../shared/types';
+import type { FileContent, FileMeta, FsEvent, SaveResult, SearchHit, TreeNode } from '../shared/types';
 
 /** Where the app reads and writes content. Local server now; GitHub Pages + GitHub API later. */
 export interface DataSource {
@@ -9,6 +9,8 @@ export interface DataSource {
   readonly savedHint?: string;
   listTree(): Promise<TreeNode[]>;
   readFile(path: string): Promise<FileContent>;
+  readBinary(path: string): Promise<ArrayBuffer>;
+  readMeta?(path: string): Promise<FileMeta | null>;
   assetUrl(path: string): string;
   save(path: string, content: string, baseVersion: string): Promise<SaveResult>;
   create(path: string, content: string): Promise<SaveResult>;
@@ -65,6 +67,16 @@ export class LocalApi implements DataSource {
 
   readFile(path: string) {
     return call<FileContent>('GET', `/api/file${q(path)}`);
+  }
+
+  async readBinary(path: string): Promise<ArrayBuffer> {
+    const res = await fetch(this.assetUrl(path));
+    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'File not found' : res.statusText);
+    return res.arrayBuffer();
+  }
+
+  readMeta(path: string) {
+    return call<FileMeta>('GET', `/api/meta${q(path)}`).catch(() => null);
   }
 
   assetUrl(path: string) {

@@ -1,0 +1,17 @@
+{
+  "service": "folio-knowledge-api",
+  "version": "2.4.0",
+  "region": "ap-southeast-1",
+  "healthy": true,
+  "limits": {
+    "maxFileBytes": 15728640,
+    "searchIndexMaxBytes": 524288
+  },
+  "supportedCategories": ["markdown", "code", "data", "document", "media"],
+  "endpoints": [
+    { "method": "GET", "path": "/api/tree", "auth": false },
+    { "method": "GET", "path": "/api/file", "auth": false },
+    { "method": "PUT", "path": "/api/file", "auth": "same-origin" },
+    { "method": "GET", "path": "/api/asset", "auth": false }
+  ]
+}

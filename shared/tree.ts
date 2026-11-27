@@ -1,4 +1,5 @@
-import { MARKDOWN_EXT, type TreeNode } from './types';
+import { isSupportedFile } from './formats';
+import type { TreeNode } from './types';
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
@@ -19,7 +20,7 @@ export function treeFromPaths(paths: string[]): TreeNode[] {
 
   for (const filePath of paths) {
     const parts = filePath.split('/');
-    if (!MARKDOWN_EXT.test(filePath) || parts.some(isIgnoredSegment)) continue;
+    if (!isSupportedFile(filePath) || parts.some(isIgnoredSegment)) continue;
 
     let parent = '';
     for (const name of parts.slice(0, -1)) {

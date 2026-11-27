@@ -1,29 +1,18 @@
 import { unzipSync } from 'fflate';
+import { getFormat, isAssetServable, isSupportedFile, isTextFile } from '../shared/formats';
 import { searchDocs } from '../shared/search';
 import { isIgnoredSegment, treeFromPaths } from '../shared/tree';
-import { IMAGE_EXT, MARKDOWN_EXT, type FileContent, type SearchHit, type TreeNode } from '../shared/types';
+import { MARKDOWN_EXT, type FileContent, type FileMeta, type SearchHit, type TreeNode } from '../shared/types';
 import { ApiError, type DataSource } from './data';
 
-/** A folder picked on this device: every markdown file and image in it, kept in the browser. */
+/** A folder picked on this device: every supported file in it, kept in the browser. */
 export type Snapshot = { name: string; files: { path: string; blob: Blob }[] };
-
-const IMAGE_TYPES: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  svg: 'image/svg+xml', // <img> refuses an SVG blob without this type
-  avif: 'image/avif',
-  bmp: 'image/bmp',
-  ico: 'image/x-icon',
-};
 
 /** Same visibility rules as the server tree, plus macOS zip junk. */
 function wanted(path: string): boolean {
   const parts = path.split('/');
   if (parts.some((p) => isIgnoredSegment(p) || p === '__MACOSX')) return false;
-  return MARKDOWN_EXT.test(path) || IMAGE_EXT.test(path);
+  return isSupportedFile(path);
 }
 
 /** Drop a top folder shared by every path ("notes/a.md", "notes/b/c.md" → "a.md", "b/c.md"). */
@@ -45,8 +34,10 @@ function finish(entries: Snapshot['files'], fallbackName: string): Snapshot {
 export function snapshotFromZip(name: string, data: Uint8Array): Snapshot {
   const unzipped = unzipSync(data, { filter: (f) => !f.name.endsWith('/') && wanted(f.name) });
   const entries = Object.entries(unzipped).map(([path, bytes]) => {
-    const ext = path.split('.').pop()!.toLowerCase();
-    return { path, blob: new Blob([bytes], { type: IMAGE_TYPES[ext] ?? 'text/markdown' }) };
+    const mime = getFormat(path)?.mime ?? 'application/octet-stream';
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return { path, blob: new Blob([copy], { type: mime }) };
   });
   return finish(entries, name.replace(/\.zip$/i, ''));
 }
@@ -183,8 +174,8 @@ export class DeviceFolderSource implements DataSource {
     const name = uniqueName(snapshot.name, new Set(this.snapshots.map((s) => s.name)));
     for (const { path, blob } of snapshot.files) {
       const full = `${name}/${path}`;
-      if (MARKDOWN_EXT.test(path)) this.texts.set(full, (await blob.text()).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
-      else this.images.set(full, blob);
+      if (isTextFile(path)) this.texts.set(full, (await blob.text()).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
+      if (isAssetServable(path)) this.images.set(full, blob);
     }
     this.snapshots.push({ ...snapshot, name });
     return name;
@@ -211,17 +202,31 @@ export class DeviceFolderSource implements DataSource {
   }
 
   get fileCount() {
-    return this.texts.size;
+    return new Set([...this.texts.keys(), ...this.images.keys()]).size;
   }
 
   async listTree(): Promise<TreeNode[]> {
-    return treeFromPaths([...this.texts.keys()]);
+    return treeFromPaths([...new Set([...this.texts.keys(), ...this.images.keys()])]);
   }
 
   async readFile(path: string): Promise<FileContent> {
     const content = this.texts.get(path);
     if (content === undefined) throw new ApiError(404, 'File not found');
     return { path, content, version: '' };
+  }
+
+  async readBinary(path: string): Promise<ArrayBuffer> {
+    const blob = this.images.get(path);
+    if (!blob) throw new ApiError(404, 'File not found');
+    return blob.arrayBuffer();
+  }
+
+  async readMeta(path: string): Promise<FileMeta | null> {
+    const blob = this.images.get(path);
+    if (blob) return { path, size: blob.size, mtimeMs: 0 };
+    const text = this.texts.get(path);
+    if (text !== undefined) return { path, size: new Blob([text]).size, mtimeMs: 0 };
+    return null;
   }
 
   assetUrl(path: string): string {

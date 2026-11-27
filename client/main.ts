@@ -1,8 +1,17 @@
-import { MARKDOWN_EXT, type FileContent, type FsEvent, type TreeNode } from '../shared/types';
+import {
+  canEditFile,
+  getFormat,
+  isSupportedFile,
+  stripDisplayExtension,
+  SUPPORTED_ACCEPT_ATTR,
+  type FileFormat,
+  type FormatCategory,
+} from '../shared/formats';
+import { type FileContent, type FsEvent, type TreeNode } from '../shared/types';
 import './style.css';
-import { ApiError, ConflictError, LocalApi, type DataSource } from './data';
-import type { ContentEditor } from './editor';
 import { renderChanges } from './changes';
+import { CommandPalette, type PaletteCommand } from './command-palette';
+import { ApiError, ConflictError, LocalApi, type DataSource } from './data';
 import {
   canPickDirectory,
   DeviceFolderSource,
@@ -13,14 +22,24 @@ import {
   snapshotFromFiles,
   type Snapshot,
 } from './device-folder';
-import { applyTheme, loadTheme, nextTheme, renderSearchResults, renderToc, updateThemeColor } from './extras';
-import { uploadImages } from './images';
-import { fileHref, parseRoute } from './links';
-import { renderMarkdown } from './render';
+import type { ContentEditor } from './editor';
+import { renderSearchResults, renderToc } from './extras';
 import { HostedSource } from './hosted';
-import { defaultFile, Sidebar } from './sidebar';
+import { iconEl } from './icons';
+import { uploadImages } from './images';
+import { fileHref, folderHref, parseFolderRoute, parseRoute } from './links';
+import {
+  AppearanceStudio,
+  applyPrefs,
+  loadPrefs,
+  loadSidebarCollapsed,
+  saveSidebarCollapsed,
+  updateThemeColor,
+} from './reader-prefs';
+import { collectCategories, defaultFile, flattenFiles, Sidebar } from './sidebar';
+import { renderFolderView } from './viewers/folder-view';
+import { renderFileView, type ViewerHandle } from './viewers/index';
 
-// The GitHub Pages build sets VITE_HOSTED; `npm run dev` / `npm start` use the local server.
 const hosted = import.meta.env.VITE_HOSTED
   ? new HostedSource({
       repo: import.meta.env.VITE_REPO ?? '',
@@ -29,9 +48,8 @@ const hosted = import.meta.env.VITE_HOSTED
       base: import.meta.env.BASE_URL,
     })
   : null;
-/** The folder this app was started with (server folder, or the repo's docs on GitHub Pages). */
+
 const homeSource: DataSource = hosted ?? new LocalApi();
-/** What's shown right now: the home folder, or a folder opened from this device. */
 let ds: DataSource = homeSource;
 let unsubscribe: (() => void) | undefined;
 
@@ -39,9 +57,11 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const layout = $<HTMLElement>('layout');
 const content = $<HTMLElement>('content');
 const breadcrumb = $<HTMLElement>('breadcrumb');
+const formatBadge = $<HTMLElement>('format-badge');
 const actions = $<HTMLElement>('actions');
 const editorPane = $<HTMLElement>('editor-pane');
 const filterInput = $<HTMLInputElement>('filter');
+const formatFilters = $<HTMLElement>('format-filters');
 const newFileButton = $<HTMLButtonElement>('new-file');
 const conflictDialog = $<HTMLDialogElement>('conflict-dialog');
 const toastEl = $<HTMLElement>('toast');
@@ -49,33 +69,67 @@ const banner = $<HTMLElement>('banner');
 const toc = $<HTMLElement>('toc');
 const tocToggle = $<HTMLButtonElement>('toc-toggle');
 const searchResults = $<HTMLElement>('search-results');
-const themeToggle = $<HTMLButtonElement>('theme-toggle');
 const installButton = $<HTMLButtonElement>('install-app');
 const changesDialog = $<HTMLDialogElement>('changes-dialog');
+const readProgress = $<HTMLElement>('read-progress');
+const focusToggle = $<HTMLButtonElement>('focus-toggle');
+const focusExit = $<HTMLButtonElement>('focus-exit');
 
-let theme = loadTheme();
-applyTheme(theme, themeToggle);
+// Hydrate SVG icons into static shell buttons
+document.querySelector('.brand-mark')?.append(iconEl('brand', 18));
+document.querySelector('.search-icon')?.append(iconEl('search', 14));
+$('open-folder').append(iconEl('openFolder', 15));
+$('new-file').append(iconEl('plus', 15));
+$('sidebar-collapse').append(iconEl('sidebar', 15));
+$('sidebar-close').append(iconEl('close', 15));
+$('menu-toggle').append(iconEl('sidebar', 16));
+$('cmd-open-top').append(iconEl('search', 15));
+$('focus-toggle').append(iconEl('focus', 15));
+$('toc-toggle').append(iconEl('toc', 15));
+$('open-folder-top').append(iconEl('openFolder', 15));
+$('cmd-search-icon').append(iconEl('search', 16));
+$('drop-overlay-icon').append(iconEl('upload', 40));
+
+// Apply initial sidebar collapsed state
+if (loadSidebarCollapsed()) layout.classList.add('sidebar-collapsed');
 
 const sidebar = new Sidebar($('tree'));
 let tree: TreeNode[] = [];
-/** The open file as last loaded from / saved to the data source. */
 let current: FileContent | null = null;
+let currentFormat: FileFormat | null = null;
+let activeViewer: ViewerHandle | null = null;
 let editor: ContentEditor | null = null;
 type EditMode = 'visual' | 'source';
 let editMode: EditMode = loadEditMode();
-/** Edits carried over when switching between visual and source mode (the new editor starts "unchanged"). */
 let carriedChanges = false;
 let saving = false;
 let loadToken = 0;
-/** Open this path straight in the editor once it loads (used after "New file"). */
 let editAfterLoad = '';
 let conflictVersion = '';
-/** A save/rename/delete is running; live events for the open file wait until it finishes. */
 let busy = false;
 let recheckAfterBusy = false;
+let activeCategory: FormatCategory | 'all' = 'all';
+
+const RECENT_KEY = 'mdv.recent';
+
+function recordRecent(path: string): void {
+  try {
+    const prev: string[] = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    const next = [path, ...prev.filter((p) => p !== path)].slice(0, 6);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
 
 const isDirty = () => editor !== null && (carriedChanges || editor.isChanged());
 const assetUrl = (p: string) => ds.assetUrl(p);
+
+const appearance = new AppearanceStudio($<HTMLButtonElement>('appearance-toggle'), loadPrefs(), () => {
+  if (current && !editor && currentFormat?.kind === 'markdown') {
+    void renderCurrentFile();
+  }
+});
 
 function loadEditMode(): EditMode {
   try {
@@ -89,11 +143,9 @@ function saveEditMode(mode: EditMode) {
   try {
     localStorage.setItem('mdv.editMode', mode);
   } catch {
-    // not persisted; fine
+    // not persisted
   }
 }
-
-// ---------- Small UI helpers ----------
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(message: string, kind: 'info' | 'error' = 'info') {
@@ -105,6 +157,8 @@ function toast(message: string, kind: 'info' | 'error' = 'info') {
 }
 
 function showMessage(title: string, detail = '') {
+  activeViewer?.destroy?.();
+  activeViewer = null;
   const box = document.createElement('div');
   box.className = 'message';
   const h = document.createElement('h2');
@@ -127,7 +181,6 @@ function hideBanner() {
   banner.hidden = true;
 }
 
-/** Run a write operation with live-event checks for the open file paused. */
 async function whileBusy<T>(fn: () => Promise<T>): Promise<T> {
   busy = true;
   try {
@@ -141,7 +194,11 @@ async function whileBusy<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function button(label: string, onClick: () => void, opts: { kind?: 'primary' | 'danger'; className?: string; disabled?: boolean } = {}) {
+function button(
+  label: string,
+  onClick: () => void,
+  opts: { kind?: 'primary' | 'danger'; className?: string; disabled?: boolean } = {},
+) {
   const b = document.createElement('button');
   b.type = 'button';
   b.textContent = label;
@@ -151,48 +208,78 @@ function button(label: string, onClick: () => void, opts: { kind?: 'primary' | '
   return b;
 }
 
-function renderBreadcrumb(path: string) {
-  breadcrumb.replaceChildren(
-    ...path.split('/').map((part, i, all) => {
+function renderBreadcrumb(path: string, isFolder = false) {
+  const parts = path ? path.split('/') : [];
+  const items: HTMLElement[] = [];
+
+  const home = document.createElement('a');
+  home.className = 'breadcrumb-link';
+  home.href = folderHref('');
+  home.textContent = 'Workspace';
+  items.push(home);
+
+  parts.forEach((part, i) => {
+    const sep = document.createElement('span');
+    sep.className = 'breadcrumb-sep';
+    sep.textContent = '/';
+    items.push(sep);
+
+    const isLast = i === parts.length - 1;
+    if (!isLast || isFolder) {
+      const a = document.createElement('a');
+      a.className = isLast ? 'breadcrumb-current' : 'breadcrumb-link';
+      a.href = folderHref(parts.slice(0, i + 1).join('/'));
+      a.textContent = part;
+      items.push(a);
+    } else {
       const span = document.createElement('span');
-      span.textContent = i === all.length - 1 ? part.replace(MARKDOWN_EXT, '') : part;
-      return span;
-    }),
-  );
+      span.className = 'breadcrumb-current';
+      span.textContent = stripDisplayExtension(part);
+      items.push(span);
+    }
+  });
+
+  breadcrumb.replaceChildren(...items);
 }
 
-const DIAGRAM_TEMPLATES: Record<string, string> = {
-  mindmap: '```mermaid\nmindmap\n  root((Chủ đề chính))\n    Nhánh 1\n      Ý nhỏ A\n      Ý nhỏ B\n    Nhánh 2\n      Ý nhỏ C\n```',
-  flowchart: '```mermaid\nflowchart LR\n    A[Bắt đầu] --> B{Điều kiện?}\n    B -->|Có| C[Xử lý 1]\n    B -->|Không| D[Xử lý 2]\n```',
-  sequence: '```mermaid\nsequenceDiagram\n    participant U as User\n    participant S as Server\n    U->>S: Request\n    S-->>U: Response\n```',
-  pie: '```mermaid\npie showData\n    title Tỷ trọng\n    "Phần A" : 40\n    "Phần B" : 35\n    "Phần C" : 25\n```',
-};
-
-function diagramInsertControl(): HTMLSelectElement {
-  const select = document.createElement('select');
-  select.className = 'diagram-insert-select';
-  select.title = 'Chèn nhanh mẫu sơ đồ Mermaid';
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = '+ Diagram';
-  select.append(placeholder);
-  for (const [key, label] of [
-    ['mindmap', 'Mindmap (Sơ đồ tư duy)'],
-    ['flowchart', 'Flowchart (Lưu đồ)'],
-    ['sequence', 'Sequence (Tuần tự)'],
-    ['pie', 'Pie Chart (Biểu đồ tròn)'],
-  ]) {
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = label;
-    select.append(opt);
+function setFormatBadge(fmt: FileFormat | null, text?: string) {
+  if (!fmt) {
+    formatBadge.hidden = true;
+    return;
   }
-  select.addEventListener('change', () => {
-    const snippet = DIAGRAM_TEMPLATES[select.value];
-    if (snippet && editor?.insertText) editor.insertText(snippet);
-    select.value = '';
-  });
-  return select;
+  formatBadge.hidden = false;
+  formatBadge.dataset.cat = fmt.category;
+  formatBadge.textContent = text ?? fmt.label;
+}
+
+function renderFormatFilters() {
+  const cats = collectCategories(tree);
+  if (cats.length <= 1) {
+    formatFilters.replaceChildren();
+    return;
+  }
+  const labels: Record<FormatCategory | 'all', string> = {
+    all: 'All',
+    markdown: 'MD',
+    code: 'Code',
+    data: 'Data',
+    document: 'Docs',
+    media: 'Media',
+  };
+  const chips: HTMLButtonElement[] = [];
+  for (const cat of ['all', ...cats] as const) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `fmt-chip${activeCategory === cat ? ' active' : ''}`;
+    b.textContent = labels[cat];
+    b.addEventListener('click', () => {
+      activeCategory = cat;
+      sidebar.setCategoryFilter(cat);
+      renderFormatFilters();
+    });
+    chips.push(b);
+  }
+  formatFilters.replaceChildren(...chips);
 }
 
 function renderActions() {
@@ -202,27 +289,29 @@ function renderActions() {
       const status = document.createElement('span');
       status.className = 'save-status';
       status.textContent = saving ? 'Saving…' : isDirty() ? 'Unsaved changes' : 'Saved';
+      items.push(status);
+
+      if (currentFormat?.kind === 'markdown') {
+        items.push(button(editMode === 'visual' ? 'Markdown' : 'Visual', () => void switchEditMode()));
+      }
+      if (editMode === 'source' && hasLivePreview(currentFormat)) {
+        items.push(button('Preview', () => layout.classList.toggle('show-preview'), { className: 'only-narrow' }));
+      }
       items.push(
-        status,
-        button(editMode === 'visual' ? 'Markdown' : 'Visual', () => void switchEditMode()),
-        ...(editMode === 'source'
-          ? [
-              diagramInsertControl(),
-              button('Preview', () => layout.classList.toggle('show-preview'), { className: 'only-narrow' }),
-            ]
-          : []),
         button('Changes', showChanges, { disabled: !isDirty() }),
         button('Done', () => exitEdit()),
         button('Save', () => void save(), { kind: 'primary', disabled: saving || !isDirty() }),
       );
     } else {
+      if (canEditFile(current.path)) {
+        items.push(button('Edit', enterEdit, { kind: 'primary' }));
+      }
       items.push(
-        button('Edit', enterEdit, { kind: 'primary' }),
-        button('Rename', () => void renameCurrent()),
-        button('Delete', () => void deleteCurrent(), { kind: 'danger' }),
+        button('Rename', () => openRenameDialog()),
+        button('Delete', () => openDeleteDialog(), { kind: 'danger' }),
       );
     }
-  } else if (current && hosted && ds === hosted && hosted.config.repo) {
+  } else if (current && hosted && ds === hosted && hosted.config.repo && canEditFile(current.path)) {
     const link = document.createElement('a');
     link.className = 'btn';
     link.href = hosted.editUrl(current.path);
@@ -234,10 +323,9 @@ function renderActions() {
   actions.replaceChildren(...items);
 }
 
-/** Normalise what the user typed as a path: trim, `/` separators, no leading slash, `.md` suffix. */
-function cleanPathInput(input: string): string {
-  const p = input.trim().replace(/\\/g, '/').replace(/^\/+/, '');
-  return MARKDOWN_EXT.test(p) ? p : `${p}.md`;
+function hasLivePreview(fmt: FileFormat | null): boolean {
+  if (!fmt) return false;
+  return ['markdown', 'html', 'svg', 'json', 'yaml', 'csv'].includes(fmt.kind);
 }
 
 function scrollToAnchor(anchor: string) {
@@ -255,26 +343,82 @@ function syncTocState() {
 
 // ---------- Viewing ----------
 
-function showCurrent(anchor = '') {
-  if (!current) return;
-  // In visual mode the editor itself is the rendered page; there's no separate preview.
+async function renderCurrentFile(anchor = '') {
+  if (!current || !currentFormat) return;
   if (editor && editMode === 'visual') return;
-  renderMarkdown(content, editor ? editor.value : current.content, current.path, assetUrl);
+
+  activeViewer?.destroy?.();
+  activeViewer = null;
+
+  const text = editor ? editor.value : current.content;
+  const allFiles = flattenFiles(tree);
+  const idx = allFiles.indexOf(current.path);
+  const neighbors =
+    !editor && idx >= 0
+      ? { prev: idx > 0 ? allFiles[idx - 1] : null, next: idx < allFiles.length - 1 ? allFiles[idx + 1] : null }
+      : undefined;
+
+  activeViewer = await renderFileView(
+    {
+      container: content,
+      path: current.path,
+      format: currentFormat,
+      ds,
+      tree,
+      textContent: text,
+      size: current.size,
+      onTocReady: () => {
+        if (editor) toc.hidden = true;
+        else renderToc(toc, content, current!.path);
+        syncTocState();
+      },
+      onMetaText: (extra) => setFormatBadge(currentFormat, extra),
+      onToast: toast,
+    },
+    neighbors,
+  );
+
   const h1 = content.querySelector('h1')?.textContent;
-  document.title = `${h1 || current.path.split('/').pop()} — MD Viewer`;
-  if (editor) toc.hidden = true;
-  else renderToc(toc, content, current.path);
-  syncTocState();
+  document.title = `${h1 || stripDisplayExtension(current.path.split('/').pop()!)} — Folio`;
+  if (currentFormat.kind !== 'markdown' && currentFormat.kind !== 'docx') {
+    toc.hidden = true;
+    syncTocState();
+  }
   scrollToAnchor(anchor);
 }
 
 async function refreshTree() {
   tree = await ds.listTree();
   sidebar.setTree(tree);
+  renderFormatFilters();
 }
 
 async function route() {
   layout.classList.remove('nav-open', 'toc-open');
+
+  const folderPath = parseFolderRoute(location.hash);
+  if (folderPath !== null) {
+    if (editor && !exitEdit()) {
+      if (current) history.replaceState(null, '', fileHref(current.path));
+      return;
+    }
+    activeViewer?.destroy?.();
+    activeViewer = null;
+    current = null;
+    currentFormat = null;
+    hideBanner();
+    sidebar.setActive('');
+    renderBreadcrumb(folderPath, true);
+    setFormatBadge(null);
+    toc.hidden = true;
+    syncTocState();
+    renderActions();
+    renderFolderView(content, tree, folderPath, ds, showOpenDialog);
+    document.title = `${folderPath || 'Workspace'} — Folio`;
+    window.scrollTo(0, 0);
+    return;
+  }
+
   const parsed = parseRoute(location.hash);
   if (!parsed) return;
 
@@ -283,26 +427,43 @@ async function route() {
     return;
   }
   if (editor && !exitEdit()) {
-    // User chose to keep editing: put the URL back without adding a history entry.
     if (current) history.replaceState(null, '', fileHref(current.path));
     return;
   }
 
   const token = ++loadToken;
   current = null;
+  currentFormat = getFormat(parsed.path);
   hideBanner();
   sidebar.setActive(parsed.path);
   renderBreadcrumb(parsed.path);
+  setFormatBadge(currentFormat);
   renderActions();
 
+  if (!currentFormat) {
+    toc.hidden = true;
+    syncTocState();
+    showMessage('Unsupported file format', parsed.path);
+    return;
+  }
+
+  recordRecent(parsed.path);
+
   try {
-    const file = await ds.readFile(parsed.path);
-    if (token !== loadToken) return;
-    current = file;
-    showCurrent(parsed.anchor);
-    if (editAfterLoad === file.path) {
-      editAfterLoad = '';
-      enterEdit();
+    if (currentFormat.isText) {
+      const file = await ds.readFile(parsed.path);
+      if (token !== loadToken) return;
+      current = file;
+      await renderCurrentFile(parsed.anchor);
+      if (editAfterLoad === file.path) {
+        editAfterLoad = '';
+        enterEdit();
+      }
+    } else {
+      const meta = await ds.readMeta?.(parsed.path);
+      if (token !== loadToken) return;
+      current = { path: parsed.path, content: '', version: '', size: meta?.size };
+      await renderCurrentFile(parsed.anchor);
     }
   } catch (err) {
     if (token !== loadToken) return;
@@ -317,13 +478,12 @@ async function route() {
 
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let lastDirty = false;
-
 let opening = false;
 
 function onEditorChange() {
-  if (editMode === 'source') {
+  if (editMode === 'source' && hasLivePreview(currentFormat)) {
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => showCurrent(), 150);
+    previewTimer = setTimeout(() => void renderCurrentFile(), 180);
   }
   if (isDirty() !== lastDirty) {
     lastDirty = isDirty();
@@ -332,30 +492,41 @@ function onEditorChange() {
 }
 
 async function openEditor(text: string) {
-  if (!current || opening) return;
+  if (!current || !currentFormat || opening) return;
   opening = true;
   try {
+    activeViewer?.destroy?.();
+    activeViewer = null;
+    if (currentFormat.kind !== 'markdown') editMode = 'source';
+
     layout.classList.add('editing');
     toc.hidden = true;
     syncTocState();
     layout.classList.toggle('visual', editMode === 'visual');
     layout.classList.toggle('source', editMode === 'source');
-    // Editors are loaded on first use so people who only read don't download them.
+    layout.classList.toggle('source-only', editMode === 'source' && !hasLivePreview(currentFormat));
+
     const filePath = current.path;
     const opts = {
       onChange: onEditorChange,
       uploadImages: (files: File[]) => uploadImages(ds, filePath, files),
       onError: (err: Error) => toast(`Image upload failed: ${err.message}`, 'error'),
+      cmLang: currentFormat.cmLang,
+      allowImageUpload: currentFormat.kind === 'markdown',
     };
-    if (editMode === 'visual') {
+
+    if (editMode === 'visual' && currentFormat.kind === 'markdown') {
       const { VisualEditor } = await import('./visual-editor');
       editor = await VisualEditor.create(editorPane, text, { ...opts, filePath, assetUrl });
     } else {
       const { SourceEditor } = await import('./editor');
-      editor = new SourceEditor(editorPane, text, opts);
+      editor = await SourceEditor.create(editorPane, text, opts);
     }
+
     lastDirty = isDirty();
-    if (editMode === 'source') showCurrent();
+    if (editMode === 'source' && hasLivePreview(currentFormat)) {
+      await renderCurrentFile();
+    }
     if (editor.lossless === false) {
       showBanner(
         "Parts of this file use syntax Visual mode can't show exactly. Lines you don't edit are saved unchanged; to edit those parts, use Markdown.",
@@ -364,7 +535,7 @@ async function openEditor(text: string) {
     }
     editor.focus();
   } catch (err) {
-    layout.classList.remove('editing', 'visual', 'source');
+    layout.classList.remove('editing', 'visual', 'source', 'source-only');
     toast(`Could not open the editor: ${(err as Error).message}`, 'error');
   } finally {
     opening = false;
@@ -373,19 +544,14 @@ async function openEditor(text: string) {
 }
 
 function enterEdit() {
-  if (!current || editor || !ds.canWrite) return;
+  if (!current || editor || !ds.canWrite || !canEditFile(current.path)) return;
   carriedChanges = false;
+  editMode = currentFormat?.kind === 'markdown' ? loadEditMode() : 'source';
   void openEditor(current.content);
 }
 
-/**
- * Swap visual ⇄ markdown source, keeping whatever has been typed so far.
- * `remember: false` is for a one-off switch (the lossy-file warning) that shouldn't change the default.
- */
 async function switchEditMode(remember = true) {
-  if (!editor || !current) return;
-  // Untouched → start from the file itself, not from the visual editor's re-serialised copy
-  // (which may already have lost syntax it can't represent).
+  if (!editor || !current || currentFormat?.kind !== 'markdown') return;
   carriedChanges = isDirty();
   const text = carriedChanges ? editor.value : current.content;
   editor.destroy();
@@ -397,7 +563,6 @@ async function switchEditMode(remember = true) {
   await openEditor(text);
 }
 
-/** Leave edit mode. Returns false if the user chose to keep unsaved changes. */
 function exitEdit(force = false): boolean {
   if (!editor) return true;
   if (!force && isDirty() && !confirm('Discard unsaved changes?')) return false;
@@ -405,10 +570,10 @@ function exitEdit(force = false): boolean {
   editor.destroy();
   editor = null;
   carriedChanges = false;
-  editMode = loadEditMode(); // undo a one-off switch
-  layout.classList.remove('editing', 'visual', 'source', 'show-preview');
+  editMode = loadEditMode();
+  layout.classList.remove('editing', 'visual', 'source', 'source-only', 'show-preview');
   hideBanner();
-  showCurrent();
+  void renderCurrentFile();
   renderActions();
   return true;
 }
@@ -421,15 +586,13 @@ async function save() {
   try {
     const result = await whileBusy(() => ds.save(current!.path, text, current!.version));
     current = { ...current, content: text, version: result.version };
-    // Anything typed while the request was in flight stays "unsaved".
     editor?.markSaved(text);
     carriedChanges = false;
     hideBanner();
-    if (ds.savedHint) toast(ds.savedHint);
+    toast(ds.savedHint ?? 'Saved');
   } catch (err) {
     if (err instanceof ConflictError) {
       conflictVersion = err.currentVersion;
-      // Esc closes without setting returnValue, so clear the previous choice first.
       conflictDialog.returnValue = '';
       conflictDialog.showModal();
     } else {
@@ -442,14 +605,13 @@ async function save() {
   }
 }
 
-/** Replace what's open (and in the editor) with the latest version from the data source. */
 async function reloadCurrent() {
   if (!current) return;
   try {
     current = await ds.readFile(current.path);
     editor?.setValue(current.content);
     carriedChanges = false;
-    showCurrent();
+    await renderCurrentFile();
   } catch (err) {
     toast(`Reload failed: ${(err as Error).message}`, 'error');
   }
@@ -457,7 +619,6 @@ async function reloadCurrent() {
   renderActions();
 }
 
-/** Show exactly what saving would write, compared with the file as loaded. */
 function showChanges() {
   if (!editor || !current) return;
   const stats = renderChanges($('changes-body'), current.content, editor.value);
@@ -488,32 +649,84 @@ conflictDialog.addEventListener('close', async () => {
   }
 });
 
-// ---------- File operations ----------
+// ---------- File Operations (Dialogs) ----------
 
-async function newFile() {
+const newFileDialog = $<HTMLDialogElement>('new-file-dialog');
+const newFilePathInput = $<HTMLInputElement>('new-file-path');
+const newFilePresets = $<HTMLElement>('new-file-presets');
+const renameDialog = $<HTMLDialogElement>('rename-dialog');
+const renamePathInput = $<HTMLInputElement>('rename-path');
+const deleteDialog = $<HTMLDialogElement>('delete-dialog');
+
+for (const ext of ['.md', '.txt', '.json', '.yaml', '.csv', '.html', '.ts', '.sql']) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'preset-chip';
+  chip.textContent = ext;
+  chip.addEventListener('click', () => {
+    const val = newFilePathInput.value.trim() || 'untitled.md';
+    newFilePathInput.value = val.replace(/\.[^./]+$/, '') + ext;
+    newFilePathInput.focus();
+  });
+  newFilePresets.append(chip);
+}
+
+function starterContent(path: string): string {
+  const fmt = getFormat(path);
+  const title = stripDisplayExtension(path.split('/').pop()!);
+  switch (fmt?.kind) {
+    case 'markdown':
+      return `# ${title}\n\n`;
+    case 'json':
+      return '{\n  \n}\n';
+    case 'html':
+      return `<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <title>${title}</title>\n</head>\n<body>\n  <h1>${title}</h1>\n</body>\n</html>\n`;
+    case 'csv':
+      return 'Name,Value\n';
+    default:
+      return '';
+  }
+}
+
+function openNewFileDialog() {
   const dir = current?.path.includes('/') ? current.path.slice(0, current.path.lastIndexOf('/')) : '';
-  const input = prompt('New file path (use / for subfolders):', dir ? `${dir}/untitled.md` : 'untitled.md');
-  if (!input?.trim()) return;
-  const path = cleanPathInput(input);
-  const title = path.split('/').pop()!.replace(MARKDOWN_EXT, '');
+  newFilePathInput.value = dir ? `${dir}/untitled.md` : 'untitled.md';
+  newFileDialog.returnValue = '';
+  newFileDialog.showModal();
+  newFilePathInput.focus();
+}
+
+newFileDialog.addEventListener('close', async () => {
+  if (newFileDialog.returnValue !== 'create') return;
+  const raw = newFilePathInput.value.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!raw) return;
+  const path = isSupportedFile(raw) ? raw : `${raw}.md`;
   try {
-    const result = await ds.create(path, `# ${title}\n\n`);
+    const result = await ds.create(path, starterContent(path));
     await refreshTree();
     editAfterLoad = result.path;
     location.hash = fileHref(result.path);
   } catch (err) {
     toast(`Could not create file: ${(err as Error).message}`, 'error');
   }
+});
+
+function openRenameDialog() {
+  if (!current) return;
+  renamePathInput.value = current.path;
+  renameDialog.returnValue = '';
+  renameDialog.showModal();
+  renamePathInput.focus();
 }
 
-async function renameCurrent() {
-  if (!current) return;
-  const input = prompt('Rename or move to (use / for subfolders):', current.path);
-  if (!input?.trim() || cleanPathInput(input) === current.path) return;
+renameDialog.addEventListener('close', async () => {
+  if (renameDialog.returnValue !== 'rename' || !current) return;
+  const to = renamePathInput.value.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!to || to === current.path) return;
   try {
     const from = current.path;
     await whileBusy(async () => {
-      const result = await ds.rename(from, cleanPathInput(input));
+      const result = await ds.rename(from, to);
       current = null;
       await refreshTree();
       location.replace(fileHref(result.path));
@@ -521,11 +734,17 @@ async function renameCurrent() {
   } catch (err) {
     toast(`Could not rename: ${(err as Error).message}`, 'error');
   }
+});
+
+function openDeleteDialog() {
+  if (!current) return;
+  $('delete-message').textContent = `Delete "${current.path}"? ${ds.deleteHint}`;
+  deleteDialog.returnValue = '';
+  deleteDialog.showModal();
 }
 
-async function deleteCurrent() {
-  if (!current) return;
-  if (!confirm(`Delete "${current.path}"?\n\n${ds.deleteHint}`)) return;
+deleteDialog.addEventListener('close', async () => {
+  if (deleteDialog.returnValue !== 'delete' || !current) return;
   try {
     const path = current.path;
     await whileBusy(async () => {
@@ -537,36 +756,37 @@ async function deleteCurrent() {
     if (next) {
       location.replace(fileHref(next));
     } else {
-      history.replaceState(null, '', location.pathname);
-      breadcrumb.replaceChildren();
-      toc.hidden = true;
-      syncTocState();
-      showMessage('No markdown files', 'The folder is empty now.');
-      renderActions();
+      location.replace(folderHref(''));
     }
     toast('File deleted');
   } catch (err) {
     toast(`Could not delete: ${(err as Error).message}`, 'error');
   }
+});
+
+// Light-dismiss backdrop for all dialogs
+for (const dlg of document.querySelectorAll<HTMLDialogElement>('dialog.dialog')) {
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg) dlg.close('cancel');
+  });
 }
 
-// ---------- Live sync (local server only) ----------
+// ---------- Live Sync ----------
 
 let treeTimer: ReturnType<typeof setTimeout> | undefined;
 
 function onFsEvent(event: FsEvent) {
-  // Several events usually arrive together (e.g. a git pull); refresh the tree once.
   clearTimeout(treeTimer);
   treeTimer = setTimeout(() => void refreshTree().catch(() => {}), 200);
   if (current && event.path === current.path) void checkCurrentOnDisk(current.path);
 }
 
-/** The open file may have changed outside the app: reload it, or warn if that would lose edits. */
 async function checkCurrentOnDisk(path: string) {
   if (busy) {
     recheckAfterBusy = true;
     return;
   }
+  if (!currentFormat?.isText) return;
 
   let file: FileContent;
   try {
@@ -574,12 +794,12 @@ async function checkCurrentOnDisk(path: string) {
   } catch (err) {
     if (current?.path !== path || !(err instanceof ApiError && err.status === 404)) return;
     if (editor) {
-      showBanner('This file was deleted or moved outside MD Viewer. Copy your changes before leaving.');
+      showBanner('This file was deleted or moved outside Folio. Copy your changes before leaving.');
     } else {
       current = null;
       toc.hidden = true;
       syncTocState();
-      showMessage('File removed', `${path} was deleted or moved outside MD Viewer.`);
+      showMessage('File removed', `${path} was deleted or moved outside Folio.`);
       renderActions();
     }
     return;
@@ -588,12 +808,11 @@ async function checkCurrentOnDisk(path: string) {
   if (busy || current?.path !== path || file.version === current.version) return;
 
   if (!isDirty()) {
-    // Nothing of ours would be lost: take the new version.
     const changed = file.content !== current.content;
     const scroll = window.scrollY;
     current = file;
     if (editor && changed) editor.setValue(file.content);
-    showCurrent();
+    await renderCurrentFile();
     window.scrollTo(0, scroll);
     lastDirty = isDirty();
     renderActions();
@@ -602,7 +821,6 @@ async function checkCurrentOnDisk(path: string) {
   }
 
   if (editor && file.content === editor.value) {
-    // Disk already has exactly what's on screen (e.g. our own save landed late).
     current = file;
     editor.markSaved(file.content);
     carriedChanges = false;
@@ -619,7 +837,7 @@ async function checkCurrentOnDisk(path: string) {
   ]);
 }
 
-// ---------- GitHub connection (hosted mode only) ----------
+// ---------- GitHub Account ----------
 
 const account = $<HTMLElement>('account');
 const connectDialog = $<HTMLDialogElement>('connect-dialog');
@@ -628,13 +846,12 @@ const connectError = $<HTMLElement>('connect-error');
 const connectSubmit = $<HTMLButtonElement>('connect-submit');
 
 function renderAccount() {
-  // Folders opened from this device can be closed one at a time from the sidebar.
   sidebar.setRootRemover(ds instanceof DeviceFolderSource ? (name) => void closeOneFolder(name) : null);
   if (ds instanceof DeviceFolderSource) {
     const device = ds;
     const label = document.createElement('span');
     const folders = device.snapshots.length;
-    label.textContent = `📂 ${device.name} · ${device.fileCount} files · read-only`;
+    label.textContent = `${device.name} · ${device.fileCount} files · read-only`;
     label.title = ['Opened from this device; nothing was uploaded', ...device.snapshots.map((s) => s.name)].join('\n');
     account.replaceChildren(
       label,
@@ -673,7 +890,7 @@ function renderAccount() {
 
 $('connect-form').addEventListener('submit', async (e) => {
   if ((e as SubmitEvent).submitter?.getAttribute('value') !== 'connect' || !hosted) return;
-  e.preventDefault(); // keep the dialog open until the token checks out
+  e.preventDefault();
   const token = connectToken.value.trim();
   if (!token) return;
   connectSubmit.disabled = true;
@@ -688,9 +905,8 @@ $('connect-form').addEventListener('submit', async (e) => {
   }
 });
 
-// ---------- Switching folders (home ⇄ a folder opened from this device) ----------
+// ---------- Switching Folders & Drag-and-Drop ----------
 
-/** Show another data source in place of the current one. */
 async function useSource(next: DataSource): Promise<boolean> {
   if (editor && !exitEdit()) return false;
   unsubscribe?.();
@@ -701,33 +917,29 @@ async function useSource(next: DataSource): Promise<boolean> {
   hideBanner();
   filterInput.value = '';
   sidebar.setFilter('');
+  activeCategory = 'all';
+  sidebar.setCategoryFilter('all');
   searchResults.hidden = true;
   newFileButton.hidden = !ds.canWrite;
   renderAccount();
   await refreshTree();
   const first = defaultFile(tree);
   if (!first) {
-    history.replaceState(null, '', location.pathname + location.search);
-    breadcrumb.replaceChildren();
-    toc.hidden = true;
-    syncTocState();
-    showMessage('No markdown files', 'This folder has no .md files.');
-    renderActions();
+    location.replace(folderHref(''));
     return true;
   }
   const href = fileHref(first);
   if (location.hash === href) await route();
-  else location.replace(href); // hashchange → route()
+  else location.replace(href);
   return true;
 }
 
 async function openSnapshot(snapshot: Snapshot | null) {
-  if (!snapshot) return; // cancelled
-  if (!snapshot.files.some((f) => MARKDOWN_EXT.test(f.path))) {
-    toast('No .md files found in what you picked.', 'error');
+  if (!snapshot) return;
+  if (!snapshot.files.some((f) => isSupportedFile(f.path))) {
+    toast('No supported files found in what you picked.', 'error');
     return;
   }
-  // A folder opened while others are shown is added beside them as another top-level folder.
   let source: DeviceFolderSource;
   let name: string;
   if (ds instanceof DeviceFolderSource) {
@@ -736,18 +948,17 @@ async function openSnapshot(snapshot: Snapshot | null) {
     renderAccount();
     await refreshTree();
     const first = defaultFile(tree.filter((n) => n.path === name));
-    if (first) location.hash = fileHref(first).slice(1); // hashchange → route()
+    if (first) location.hash = fileHref(first).slice(1);
   } else {
     source = await DeviceFolderSource.create([snapshot]);
     name = source.snapshots[0].name;
     if (!(await useSource(source))) return;
   }
-  const count = snapshot.files.filter((f) => MARKDOWN_EXT.test(f.path)).length;
   const remembered = await rememberSnapshots(source.snapshots);
   toast(
     remembered
-      ? `Added “${name}”: ${count} files. Nothing was uploaded.`
-      : `Added “${name}”. It won't be remembered after you close this page (browser storage unavailable).`,
+      ? `Added “${name}”: ${snapshot.files.length} files. Nothing was uploaded.`
+      : `Added “${name}”. It won't be remembered after you close this page.`,
   );
 }
 
@@ -755,7 +966,6 @@ async function closeDeviceFolder() {
   if (await useSource(homeSource)) await forgetSnapshots();
 }
 
-/** Close one of the folders opened from this device; closing the last one goes back home. */
 async function closeOneFolder(name: string) {
   if (!(ds instanceof DeviceFolderSource)) return;
   const source = ds;
@@ -766,7 +976,7 @@ async function closeOneFolder(name: string) {
   if (current?.path.startsWith(`${name}/`)) {
     current = null;
     const first = defaultFile(tree);
-    if (first) location.replace(fileHref(first)); // hashchange → route()
+    if (first) location.replace(fileHref(first));
   }
   await rememberSnapshots(source.snapshots);
   toast(`Closed “${name}”.`);
@@ -775,6 +985,7 @@ async function closeOneFolder(name: string) {
 const openDialog = $<HTMLDialogElement>('open-dialog');
 const folderInput = $<HTMLInputElement>('folder-input');
 const filesInput = $<HTMLInputElement>('files-input');
+filesInput.accept = SUPPORTED_ACCEPT_ATTR;
 
 function showOpenDialog() {
   layout.classList.remove('nav-open', 'toc-open');
@@ -805,7 +1016,7 @@ $('open-choose-files').addEventListener('click', () => {
 for (const input of [folderInput, filesInput]) {
   input.addEventListener('change', async () => {
     const files = [...(input.files ?? [])];
-    input.value = ''; // allow picking the same thing again
+    input.value = '';
     if (files.length === 0) return;
     try {
       await openSnapshot(await snapshotFromFiles(files));
@@ -815,7 +1026,131 @@ for (const input of [folderInput, filesInput]) {
   });
 }
 
-// ---------- Wiring ----------
+// Global Drag & Drop
+const dropOverlay = $<HTMLElement>('drop-overlay');
+let dragDepth = 0;
+
+window.addEventListener('dragenter', (e) => {
+  if (!e.dataTransfer?.types.includes('Files') || editor) return;
+  e.preventDefault();
+  dragDepth++;
+  dropOverlay.hidden = false;
+});
+window.addEventListener('dragover', (e) => {
+  if (!e.dataTransfer?.types.includes('Files') || editor) return;
+  e.preventDefault();
+});
+window.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropOverlay.hidden = true;
+});
+window.addEventListener('drop', async (e) => {
+  if (!e.dataTransfer?.files.length || editor) return;
+  e.preventDefault();
+  dragDepth = 0;
+  dropOverlay.hidden = true;
+  try {
+    await openSnapshot(await snapshotFromFiles([...e.dataTransfer.files]));
+  } catch (err) {
+    toast(`Could not open dropped files: ${(err as Error).message}`, 'error');
+  }
+});
+
+// ---------- Command Palette & Keyboard Shortcuts ----------
+
+const palette = new CommandPalette(
+  $<HTMLDialogElement>('command-dialog'),
+  $<HTMLInputElement>('cmd-input'),
+  $('cmd-list'),
+  () => flattenFiles(tree),
+  (): PaletteCommand[] => [
+    { id: 'home', label: 'Workspace Overview', hint: 'Browse folder grid', icon: 'home', run: () => (location.hash = folderHref('')) },
+    { id: 'open', label: 'Open local folder, .zip, or files…', icon: 'openFolder', run: showOpenDialog },
+    { id: 'sidebar', label: 'Toggle Sidebar', hint: '[', icon: 'sidebar', run: toggleDesktopSidebar },
+    { id: 'focus', label: 'Toggle Focus Mode', hint: 'F', icon: 'focus', run: toggleFocusMode },
+    {
+      id: 'theme-light',
+      label: 'Theme: Atelier Light',
+      icon: 'sun',
+      run: () => {
+        appearance.current.theme = 'light';
+        applyPrefs(appearance.current);
+      },
+    },
+    {
+      id: 'theme-sepia',
+      label: 'Theme: Archival Sepia',
+      icon: 'book',
+      run: () => {
+        appearance.current.theme = 'sepia';
+        applyPrefs(appearance.current);
+      },
+    },
+    {
+      id: 'theme-dark',
+      label: 'Theme: Obsidian Dark',
+      icon: 'moon',
+      run: () => {
+        appearance.current.theme = 'dark';
+        applyPrefs(appearance.current);
+      },
+    },
+    ...(ds.canWrite ? [{ id: 'new', label: 'Create New File…', icon: 'plus' as const, run: openNewFileDialog }] : []),
+  ],
+  (href) => {
+    location.hash = href;
+  },
+  (q) => ds.search(q),
+);
+
+$('cmd-trigger').addEventListener('click', () => palette.open());
+$('cmd-open-top').addEventListener('click', () => palette.open());
+
+function toggleDesktopSidebar() {
+  const collapsed = layout.classList.toggle('sidebar-collapsed');
+  saveSidebarCollapsed(collapsed);
+}
+
+function toggleFocusMode() {
+  const on = layout.classList.toggle('focus-mode');
+  focusExit.hidden = !on;
+}
+
+$('sidebar-collapse').addEventListener('click', toggleDesktopSidebar);
+focusToggle.addEventListener('click', toggleFocusMode);
+focusExit.addEventListener('click', toggleFocusMode);
+
+// Sidebar drag-resizer
+const resizer = $('sidebar-resizer');
+resizer.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  resizer.classList.add('is-resizing');
+  const onMove = (ev: PointerEvent) => {
+    const w = Math.max(220, Math.min(440, ev.clientX));
+    document.documentElement.style.setProperty('--sidebar-w', `${w}px`);
+  };
+  const onUp = () => {
+    resizer.classList.remove('is-resizing');
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+});
+
+// Reading progress rail
+window.addEventListener(
+  'scroll',
+  () => {
+    const doc = document.documentElement;
+    const max = doc.scrollHeight - window.innerHeight;
+    const pct = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    readProgress.style.transform = `scaleX(${pct})`;
+  },
+  { passive: true },
+);
+
+// ---------- Search & Mobile Navigation ----------
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 let searchToken = 0;
@@ -839,21 +1174,21 @@ filterInput.addEventListener('input', () => {
   }, 250);
 });
 
-themeToggle.addEventListener('click', () => {
-  theme = nextTheme(theme);
-  applyTheme(theme, themeToggle);
-  if (current && !editor) showCurrent(); // re-draw diagrams in the new colours
-});
-
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   updateThemeColor();
-  if (theme === 'auto' && current && !editor) showCurrent();
+  if (appearance.current.theme === 'auto' && current && !editor && currentFormat?.kind === 'markdown') {
+    void renderCurrentFile();
+  }
 });
 
 newFileButton.hidden = !ds.canWrite;
-newFileButton.addEventListener('click', () => void newFile());
+newFileButton.addEventListener('click', openNewFileDialog);
 
 $('menu-toggle').addEventListener('click', () => {
+  if (window.innerWidth > 800) {
+    toggleDesktopSidebar();
+    return;
+  }
   layout.classList.remove('toc-open');
   layout.classList.toggle('nav-open');
 });
@@ -864,7 +1199,6 @@ tocToggle.addEventListener('click', () => {
 });
 $('backdrop').addEventListener('click', () => layout.classList.remove('nav-open', 'toc-open'));
 
-// Close mobile drawers when selecting a file, search hit, or TOC link (even if the hash didn't change).
 $('tree').addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest('a.row.file')) layout.classList.remove('nav-open');
 });
@@ -878,66 +1212,18 @@ toc.addEventListener('click', (e) => {
   }
 });
 
-// Touch swipe gestures for mobile sidebar drawer (swipe right from left edge to open, swipe left to close).
-let touchStartX = 0;
-let touchStartY = 0;
-let touchTracking = false;
-
-window.addEventListener(
-  'touchstart',
-  (e) => {
-    if (e.touches.length !== 1 || editor) {
-      touchTracking = false;
-      return;
-    }
-    const t = e.touches[0];
-    const isOpen = layout.classList.contains('nav-open');
-    // Track either a left-edge swipe-to-open or anywhere when the drawer is already open.
-    if (isOpen || t.clientX <= 28) {
-      touchStartX = t.clientX;
-      touchStartY = t.clientY;
-      touchTracking = true;
-    } else {
-      touchTracking = false;
-    }
-  },
-  { passive: true },
-);
-
-window.addEventListener(
-  'touchend',
-  (e) => {
-    if (!touchTracking || e.changedTouches.length !== 1) return;
-    touchTracking = false;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    if (Math.abs(dx) < 56 || Math.abs(dy) > Math.abs(dx) * 0.7) return;
-    if (dx > 0 && touchStartX <= 28 && !layout.classList.contains('nav-open')) {
-      layout.classList.remove('toc-open');
-      layout.classList.add('nav-open');
-    } else if (dx < 0 && layout.classList.contains('nav-open')) {
-      layout.classList.remove('nav-open');
-    }
-  },
-  { passive: true },
-);
-
-// ---------- PWA Service Worker & Install Prompt ----------
+// ---------- PWA ----------
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
-
 let deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
-
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e as BeforeInstallPromptEvent;
   installButton.hidden = false;
 });
-
 installButton.addEventListener('click', async () => {
   if (!deferredInstallPrompt) return;
   await deferredInstallPrompt.prompt();
@@ -947,17 +1233,13 @@ installButton.addEventListener('click', async () => {
     deferredInstallPrompt = null;
   }
 });
-
 window.addEventListener('appinstalled', () => {
   installButton.hidden = true;
   deferredInstallPrompt = null;
 });
-
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
-      // Service worker registration is progressive enhancement.
-    });
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
   });
 }
 
@@ -966,10 +1248,24 @@ unsubscribe = ds.subscribe?.(onFsEvent);
 renderAccount();
 
 window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    palette.open();
+    return;
+  }
   if (editor && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     void save();
+    return;
   }
+  if (e.key === 'Escape' && layout.classList.contains('focus-mode')) {
+    toggleFocusMode();
+    return;
+  }
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (editor || tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+  if (e.key === '[') toggleDesktopSidebar();
+  else if (e.key.toLowerCase() === 'f') toggleFocusMode();
 });
 
 window.addEventListener('beforeunload', (e) => {
@@ -981,7 +1277,6 @@ function treeHasFile(nodes: TreeNode[], path: string): boolean {
 }
 
 async function start() {
-  // A folder opened from this device earlier is shown again until it's closed.
   const remembered = await recallSnapshots();
   if (remembered.length) {
     try {
@@ -996,14 +1291,15 @@ async function start() {
   }
   try {
     await refreshTree();
+    const isFolder = parseFolderRoute(location.hash) !== null;
     const requested = parseRoute(location.hash);
-    if (!requested || (remembered.length && !treeHasFile(tree, requested.path))) {
+    if (!isFolder && (!requested || (remembered.length && !treeHasFile(tree, requested.path)))) {
       const first = defaultFile(tree);
       if (!first) {
-        showMessage('No markdown files', 'The configured folder has no .md files yet.');
-        return;
+        location.replace(folderHref(''));
+      } else {
+        location.replace(fileHref(first));
       }
-      location.replace(fileHref(first));
     }
     await route();
   } catch (err) {

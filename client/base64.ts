@@ -11,7 +11,11 @@ export function encodeBase64Bytes(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export function decodeBase64Utf8(base64: string): string {
+export function decodeBase64Bytes(base64: string): Uint8Array {
   const binary = atob(base64.replace(/\s/g, ''));
-  return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+export function decodeBase64Utf8(base64: string): string {
+  return new TextDecoder().decode(decodeBase64Bytes(base64));
 }

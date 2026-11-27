@@ -5,9 +5,13 @@ import { defineConfig, type Plugin } from 'vite';
 const csp = [
   "default-src 'self'",
   "script-src 'self'",
+  "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'", // CodeMirror/ProseMirror inject <style> elements
+  "font-src 'self' data:",
   "img-src 'self' data: blob: https:", // blob: = images from a folder opened on the device
-  "connect-src 'self' https://api.github.com",
+  "media-src 'self' blob: data:",
+  "frame-src 'self' blob: data:",
+  "connect-src 'self' blob: data: https://api.github.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
